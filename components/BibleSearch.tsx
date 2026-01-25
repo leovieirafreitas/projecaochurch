@@ -61,6 +61,7 @@ export default function BibleSearch() {
 
     const [activeSlide, setActiveSlide] = useState<{ text: string, ref: string } | null>(null);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
+    const [isProjectionVisible, setIsProjectionVisible] = useState(true);
 
     // --- STATES PARA PREVIEW/SLIDES (Adicionados para corrigir erro) ---
     const [previewSettings, setPreviewSettings] = useState<any>(null);
@@ -97,9 +98,10 @@ export default function BibleSearch() {
     // --- SINCRONIZAÇÃO COM API DE PROJEÇÃO EXTERNA (LINK ÚNICO) ---
     useEffect(() => {
         const syncToApi = async () => {
+            const shouldShow = activeSlide && isProjectionVisible;
             const payload = {
-                verseText: activeSlide ? activeSlide.text : '',
-                reference: activeSlide ? activeSlide.ref : '',
+                verseText: shouldShow ? activeSlide.text : '',
+                reference: shouldShow ? activeSlide.ref : '',
                 slideIndex: currentPartIndex,
                 version: currentVersion,
                 style: previewSettings || {},
@@ -129,7 +131,7 @@ export default function BibleSearch() {
         };
 
         syncToApi();
-    }, [activeSlide, currentPartIndex, previewSettings, currentVersion]);
+    }, [activeSlide, currentPartIndex, previewSettings, currentVersion, isProjectionVisible]);
 
 
     // Quebra de Texto (Atualizado)
@@ -168,6 +170,7 @@ export default function BibleSearch() {
         try {
             const chaps = await YouVersionClient.getChapters(currentVersion, bookId);
             if (chaps) setChapterList(chaps);
+            return chaps;
         } catch (e) { console.error(e); }
     };
 
@@ -263,7 +266,44 @@ export default function BibleSearch() {
         const chapNum = selectedChapterId.split('.')[1] || selectedChapterId;
         const ref = `${bookName} ${chapNum}:${v.num}`;
         setActiveSlide({ text: v.text, ref });
+        setIsProjectionVisible(true);
     };
+
+    const previewContainerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleWheel = (e: WheelEvent) => {
+            e.preventDefault();
+            const el = document.getElementById('preview-scaler');
+            if (!el) return;
+
+            const currentTrans = el.style.transform;
+            const scaleMatch = currentTrans.match(/scale\(([^)]+)\)/);
+            let currentScale = scaleMatch ? parseFloat(scaleMatch[1]) : 0.3;
+
+            // Ajuste de sensibilidade do zoom
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            let newScale = Math.max(0.1, Math.min(3, currentScale + delta));
+
+            const translateMatch = currentTrans.match(/translate\(([^)]+)\)/);
+            const translatePart = translateMatch ? `translate(${translateMatch[1]})` : 'translate(0px, 0px)';
+            el.style.transform = `${translatePart} scale(${newScale})`;
+
+            const slider = document.getElementById('zoom-slider') as HTMLInputElement;
+            if (slider) slider.value = String(newScale);
+        };
+
+        const container = previewContainerRef.current;
+        if (container) {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+        }
+
+        return () => {
+            if (container) {
+                container.removeEventListener('wheel', handleWheel);
+            }
+        };
+    }, []);
 
     return (
         <div className="h-screen bg-[#1a1a1a] text-white flex overflow-hidden font-sans select-none">
@@ -380,7 +420,10 @@ export default function BibleSearch() {
                         </div>
                         <div className="flex items-center gap-2">
                             <button onClick={() => { navigator.clipboard.writeText(window.location.origin + '/projection'); alert('Link copiado!'); }} className="bg-[#333] hover:bg-[#444] text-[9px] text-gray-300 uppercase font-bold px-2 py-1 rounded flex items-center gap-1 transition border border-[#444]">
-                                🔗 Link Projeção
+                                Link Projeção
+                            </button>
+                            <button onClick={() => setIsProjectionVisible(!isProjectionVisible)} className={`${isProjectionVisible ? 'bg-red-900/50 hover:bg-red-900 text-red-200 border-red-900/50' : 'bg-green-700 hover:bg-green-600 text-white border-green-700'} text-[9px] uppercase font-bold px-2 py-1 rounded flex items-center gap-1 transition border w-24 justify-center`}>
+                                {isProjectionVisible ? '⏹ Parar' : '▶ Retomar'}
                             </button>
                             <button onClick={() => setIsEditorOpen(true)} className="bg-blue-600 hover:bg-blue-500 text-white text-[9px] uppercase font-bold px-3 py-1 rounded flex items-center gap-1 transition">
                                 Editar Projeção
@@ -390,7 +433,7 @@ export default function BibleSearch() {
 
                     {/* ÁREA DO PROJETOR SIMULADA (WYSIWYG) */}
                     <div className="flex-1 flex items-center justify-center p-4 overflow-hidden bg-[#0a0a0a]">
-                        {activeSlide ? (
+                        {activeSlide && isProjectionVisible ? (
                             <div className="relative w-full h-full flex items-center justify-center overflow-hidden bg-black/50">
                                 {/* CONTROLE DE ZOOM DO PREVIEW (FIXO) */}
                                 <div className="absolute top-2 right-2 z-50 flex items-center gap-2 bg-black/80 px-2 py-1 rounded border border-white/10 shadow-lg select-none">
@@ -416,30 +459,10 @@ export default function BibleSearch() {
                                         onClick={(e) => e.stopPropagation()}
                                     />
                                 </div>
-
                                 {/* VIRTUAL CANVAS PREVIEW (Pan & Zoom Container) */}
                                 <div
+                                    ref={previewContainerRef}
                                     className="relative w-full h-full flex items-center justify-center overflow-hidden bg-transparent cursor-grab active:cursor-grabbing"
-                                    onWheel={(e) => {
-                                        e.preventDefault();
-                                        const el = document.getElementById('preview-scaler');
-                                        if (!el) return;
-
-                                        const currentTrans = el.style.transform;
-                                        const scaleMatch = currentTrans.match(/scale\(([^)]+)\)/);
-                                        let currentScale = scaleMatch ? parseFloat(scaleMatch[1]) : 0.3;
-
-                                        // Ajuste de sensibilidade do zoom
-                                        const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                                        let newScale = Math.max(0.1, Math.min(3, currentScale + delta));
-
-                                        const translateMatch = currentTrans.match(/translate\(([^)]+)\)/);
-                                        const translatePart = translateMatch ? `translate(${translateMatch[1]})` : 'translate(0px, 0px)';
-                                        el.style.transform = `${translatePart} scale(${newScale})`;
-
-                                        const slider = document.getElementById('zoom-slider') as HTMLInputElement;
-                                        if (slider) slider.value = String(newScale);
-                                    }}
                                     onMouseDown={(e) => {
                                         const el = document.getElementById('preview-scaler');
                                         if (!el) return;
@@ -555,7 +578,12 @@ export default function BibleSearch() {
                         ) : (
                             <div className="text-gray-700 flex flex-col items-center select-none w-full h-full justify-center bg-[#111]">
                                 <h1 className="text-4xl font-black opacity-10">OFFLINE</h1>
-                                <span className="text-[10px] uppercase font-bold tracking-widest opacity-30 mt-2">Nenhum slide ativo</span>
+                                {activeSlide && !isProjectionVisible && (
+                                    <span className="text-[10px] uppercase font-bold tracking-widest opacity-50 mt-2 text-red-500 animate-pulse">
+                                        PROJEÇÃO PARADA (Clique em Retomar)
+                                    </span>
+                                )}
+                                {!activeSlide && <span className="text-[10px] uppercase font-bold tracking-widest opacity-30 mt-2">Nenhum slide ativo</span>}
                             </div>
                         )}
                     </div>
