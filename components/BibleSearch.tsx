@@ -54,8 +54,8 @@ const cleanText = (text: string) => text.replace(/\s+/g, ' ').replace(/\[\d+\]/g
 const VERSION_FULL_NAMES: Record<string, string> = {
     'NVI': 'Nova Versão Internacional',
     'NTLH': 'Nova Tradução na Linguagem de Hoje',
-    'ARC': 'Almeida Revista e Corrigida',
-    'ARA': 'Almeida Revista e Atualizada',
+    'ARC': 'Almeida Revista e Corrigida (Novo Testamento)',
+    'ARA': 'Almeida Revista e Atualizada (Novo Testamento)',
     'NAA': 'Nova Almeida Atualizada',
     'NVT': 'Nova Versão Transformadora',
     'KJA': 'King James Atualizada',
@@ -63,8 +63,17 @@ const VERSION_FULL_NAMES: Record<string, string> = {
     'NBV-P': 'Nova Bíblia Viva',
     'OL': 'O Livro',
     'PTNVI': 'Nova Versão Internacional (PT)',
-    'ACF': 'Almeida Corrigida Fiel'
+    'ACF': 'Almeida Corrigida Fiel', // DBT (Oficial)
+    'ACF (OLD)': 'Almeida Corrigida Fiel (Backup)' // Legacy
 };
+
+const NT_ONLY_VERSIONS = ['PORARA', 'PORARC'];
+const OLD_TESTAMENT_BOOKS = new Set([
+    'GEN', 'EXO', 'LEV', 'NUM', 'DEU', 'JOS', 'JDG', 'RUT', '1SA', '2SA',
+    '1KI', '2KI', '1CH', '2CH', 'EZR', 'NEH', 'EST', 'JOB', 'PSA', 'PRO',
+    'ECC', 'SNG', 'ISA', 'JER', 'LAM', 'EZK', 'DAN', 'HOS', 'JOL', 'AMO',
+    'OBA', 'JON', 'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL'
+]);
 
 export default function BibleSearch() {
     const [selectedBookId, setSelectedBookId] = useState('GEN');
@@ -162,7 +171,22 @@ export default function BibleSearch() {
     }, [activeSlide]);
 
     useEffect(() => { loadVersions(); }, []);
+
+    // ATUALIZAÇÃO DE CAPÍTULOS E FILTRO NT
     useEffect(() => {
+        // Se mudou para versão NT e o livro selecionado é OT -> Mudar para MAT automaticamente
+        const isNt = NT_ONLY_VERSIONS.includes(currentVersion);
+        if (isNt && OLD_TESTAMENT_BOOKS.has(selectedBookId)) {
+            // Force reset to MAT without loading chapters twice
+            setSelectedBookId('MAT');
+            // O effect vai rodar de novo pois selectedBookId não mudou no render cycle ainda? 
+            // Não, se eu setar aqui ele agenda update.
+            // Mas preciso garantir que carregue.
+            // Vou chamar load diretamente.
+            selectBook('MAT');
+            return;
+        }
+
         if (selectedChapterId) {
             loadChapterText(selectedBookId, selectedChapterId);
             loadChapters(selectedBookId);
@@ -384,8 +408,14 @@ export default function BibleSearch() {
                 {/* PAINEL LIVROS (Topo - 35%) */}
                 <div className="h-[35%] border-b border-black bg-[#1a1a1a] p-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 shrink-0">
                     <div className="grid grid-cols-12 gap-1 content-start">
-                        {BOOK_GROUPS.map(group => (
-                            group.books.map(bookId => {
+                        {BOOK_GROUPS.map(group => {
+                            const isNtOnly = NT_ONLY_VERSIONS.includes(currentVersion);
+                            // Filtra livros se for NT Only
+                            const filteredBooks = group.books.filter(b => !isNtOnly || !OLD_TESTAMENT_BOOKS.has(b));
+
+                            if (filteredBooks.length === 0) return null; // Esconde grupo vazio
+
+                            return filteredBooks.map(bookId => {
                                 const info = BIBLE_BOOKS_DATA[bookId] || { name: bookId, abbr: bookId };
                                 return (
                                     <button key={bookId} onClick={() => selectBook(bookId)} className={`${group.color} text-white rounded-[2px] h-14 flex flex-col items-center justify-center hover:brightness-110 active:brightness-90 transition-all ${selectedBookId === bookId ? 'ring-2 ring-white z-10' : 'opacity-90'}`}>
@@ -393,8 +423,8 @@ export default function BibleSearch() {
                                         <span className="text-[9px] uppercase font-bold opacity-80 leading-none truncate w-full text-center px-0.5">{info.name}</span>
                                     </button>
                                 );
-                            })
-                        ))}
+                            });
+                        })}
                     </div>
                 </div>
 
