@@ -97,7 +97,19 @@ export class YouVersionClient {
     // Adapter para Bible-API.com (Almeida)
     private static async fetchExternalBibleApi(passageId: string) {
         try {
-            const ref = passageId.replace('.', '+');
+            let ref = passageId.replace('.', '+');
+
+            // CORREÇÃO: Livros de capítulo único retornam apenas verso 1 se não especificar range
+            const singleChapBooks: Record<string, number> = {
+                'OBA': 21, 'PHM': 25, '2JN': 13, '3JN': 15, 'JUD': 25
+            };
+
+            const bookCode = passageId.split('.')[0];
+            if (singleChapBooks[bookCode]) {
+                const maxVerses = singleChapBooks[bookCode];
+                ref = `${ref}:1-${maxVerses}`;
+            }
+
             const url = `https://bible-api.com/${ref}?translation=almeida`;
 
             const res = await fetch(url);
@@ -107,7 +119,7 @@ export class YouVersionClient {
             // Gerar HTML estilo YouVersion (Texto corrido com spans)
             let html = `<div class="yv-content">`;
 
-            if (json.reference) html += `<h1 class="s1">${json.reference.toUpperCase()}</h1>`;
+            // if (json.reference) html += `<h1 class="s1">${json.reference.toUpperCase()}</h1>`; // REMOVIDO: Causa bug onde o título é interpretado como versículo.
 
             if (json.verses && Array.isArray(json.verses)) {
                 json.verses.forEach((v: any) => {

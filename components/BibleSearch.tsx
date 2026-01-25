@@ -50,6 +50,22 @@ const BIBLE_BOOKS_DATA: Record<string, { name: string, abbr: string }> = {
 // Parser Helpers
 const cleanText = (text: string) => text.replace(/\s+/g, ' ').replace(/\[\d+\]/g, '').trim();
 
+// DADOS DE REFERÊNCIA DE NOMES COMPLETOS (Mapeamento Manual para evitar siglas)
+const VERSION_FULL_NAMES: Record<string, string> = {
+    'NVI': 'Nova Versão Internacional',
+    'NTLH': 'Nova Tradução na Linguagem de Hoje',
+    'ARC': 'Almeida Revista e Corrigida',
+    'ARA': 'Almeida Revista e Atualizada',
+    'NAA': 'Nova Almeida Atualizada',
+    'NVT': 'Nova Versão Transformadora',
+    'KJA': 'King James Atualizada',
+    'VFL': 'Versão Fácil de Ler',
+    'NBV-P': 'Nova Bíblia Viva',
+    'OL': 'O Livro',
+    'PTNVI': 'Nova Versão Internacional (PT)',
+    'ACF': 'Almeida Corrigida Fiel'
+};
+
 export default function BibleSearch() {
     const [selectedBookId, setSelectedBookId] = useState('GEN');
     const [selectedChapterId, setSelectedChapterId] = useState('GEN.1');
@@ -187,8 +203,8 @@ export default function BibleSearch() {
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = html;
 
-                // Remove lixo
-                tempDiv.querySelectorAll('.note, .chapter-number, .audio-player').forEach(n => n.remove());
+                // Remove lixo (inclui títulos s1 e h1 que causam bugs em livros numerados ex: 1 João)
+                tempDiv.querySelectorAll('.note, .chapter-number, .audio-player, .s1, h1, h2, .r').forEach(n => n.remove());
 
                 const verses: { num: number, text: string }[] = [];
 
@@ -310,17 +326,27 @@ export default function BibleSearch() {
             <Head><title>Project Church</title></Head>
 
             {/* COLUNA ESQUERDA FIXA (AGORA SÓ LISTA DE TEXTO) */}
-            <div className="w-[350px] min-w-[350px] border-r border-[#333] flex flex-col bg-white text-black shrink-0 relative z-20 shadow-xl">
-                <div className="p-3 bg-gray-100 border-b border-gray-300 flex justify-between items-center h-12 shrink-0">
-                    <div className="font-bold text-base text-gray-800 truncate pr-2 w-48">
+            <div className="w-[450px] min-w-[350px] border-r border-[#333] flex flex-col bg-white text-black shrink-0 relative z-20 shadow-xl transition-all">
+                <div className="p-3 bg-gray-100 border-b border-gray-300 flex justify-between items-center h-12 shrink-0 gap-2">
+                    <div className="font-bold text-base text-gray-800 truncate flex-1 min-w-[30%]">
                         {BIBLE_BOOKS_DATA[selectedBookId]?.name} {selectedChapterId.split('.')[1] || ''}
                     </div>
                     <select
                         value={currentVersion}
                         onChange={(e) => { setCurrentVersion(e.target.value); localStorage.setItem('bible_version', e.target.value); }}
-                        className="bg-white border border-gray-300 text-gray-700 text-xs font-bold uppercase rounded py-1 px-2 outline-none cursor-pointer w-20"
+                        className="bg-white border border-gray-300 text-gray-700 text-[11px] font-bold uppercase rounded py-1 px-2 outline-none cursor-pointer max-w-[70%] flex-shrink-0"
+                        title="Selecione a Versão"
                     >
-                        {versions.map(v => (<option key={v.id} value={v.id}>{v.abbreviation.toUpperCase()}</option>))}
+                        {versions.map(v => {
+                            // Tenta obter o nome completo na ordem: Mapeamento Manual > Titulo Local > Nome > Abreviação
+                            const abbr = v.abbreviation.toUpperCase();
+                            const fullName = VERSION_FULL_NAMES[abbr] || v.local_title || v.name || abbr;
+                            return (
+                                <option key={v.id} value={v.id} title={fullName}>
+                                    {fullName}
+                                </option>
+                            );
+                        })}
                         {versions.length === 0 && <option>NVI</option>}
                     </select>
                 </div>
