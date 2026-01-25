@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Georgia', 'Times New Roman', serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  /* Normalização de renderização para garantir consistência Editor vs Projeção */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  /* Troca legibilidade por precisão matemática */
+  font-feature-settings: "kern" 1, "liga" 0;
+  /* Desliga ligaduras que variam */
+  font-kerning: normal;
+  letter-spacing: 0px;
+  /* Trava espaçamento */
+}
+
+/* Utilitário para esconder scrollbar sem perder funcionalidade */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Tipografia personalizada para o leitor */
+.bible-reader {
+  font-family: var(--font-serif);
+}
+
+.bible-content .chapter-number {
+  font-size: 2em;
+  color: #60a5fa;
+  font-weight: bold;
+  margin-right: 0.5em;
+}
+
+.bible-content .verse-number {
+  font-size: 0.7em;
+  color: #9ca3af;
+  vertical-align: super;
+  margin-right: 0.2em;
+  user-select: none;
+}
+
+.bible-content p {
+  margin-bottom: 1em;
+}
+
+.bible-content .q {
+  margin-left: 1em;
+  display: block;
+  font-style: italic;
+  color: #4b5563;
+}
+
+/* Fontes Customizadas */
+@font-face {
+  font-family: 'Wondra';
+  src: url('/fonts/Wondra.woff') format('woff'),
+    url('/fonts/Wondra.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}

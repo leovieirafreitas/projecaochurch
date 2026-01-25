@@ -1,0 +1,18 @@
+{
+  "show_verse": {
+    "status": "error",
+    "error": "Item not found"
+  },
+  "current_presentation": {
+    "status": "ok",
+    "data": null
+  },
+  "show_verse_id": {
+    "status": "error",
+    "error": "Item not found"
+  },
+  "genesis_1": {
+    "status": "error",
+    "error": "Item not found"
+  }
+}

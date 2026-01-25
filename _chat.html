@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang='pt-br'>
+    <head>
+        <meta charset='utf-8' />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>Chat Holyrics</title>
+        <link rel='stylesheet' type='text/css' href='chat-1.0.0.css'>
+        <link rel='stylesheet' type='text/css' href='custom-css-chat.css'>
+        <script src='jquery-1.8.3.js'></script>
+        <script src='utils-1.0.0.js'></script>
+        <script src='chat_utils-1.0.0.js'></script>
+        <script src='chat-1.0.0.js'></script>
+    </head>
+    <body onload="init()">
+        <script src='chat_notification-1.0.0.js'></script>
+        <div id='settings'>
+            <input type="text" id='username' class='input-text' autocomplete="off" placeholder="Nome de usuÃ¡rio" onkeyup="changeUsername(event)"/>
+            &nbsp;&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" name="checkbox" class='input-text' id="dark-theme" value="value" onclick="changeTheme(event)">
+            <label for="dark-theme">Dark theme</label>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <!--<input type="checkbox" name="checkbox" class='input-text' id="notification" value="value" onclick="changeNotification(event)">
+            <label for="notification">NotificaÃ§Ã£o</label>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-->
+            <span id='notification-status'></span>
+        </div>
+        <div id='content'>
+            <div id='chat_panel'>
+            </div>
+            <div id='text-area'>
+                <textarea id='input-text' class='input-text' rows='3' autofocus onkeydown='textAreaKeyPressed(event);'></textarea>
+                <button value="" id='button-send' onclick="buttonSendClick()">&nbsp;</button>
+                <script type="text/javascript">
+                    cssHash = '0';
+                    document.getElementById("dark-theme").checked = isDarkTheme;
+                    document.getElementById("username").value = _username;
+                    //document.getElementById("notification").checked = notificationEnabled;
+
+                    var defaultText = getCookie("defaultText");
+                    if (defaultText !== null) {
+                        setCookie("defaultText", "");
+                        document.getElementById('input-text').value = defaultText;
+                    }
+                </script>
+            </div>
+        </div>
+    </body>
+</html>

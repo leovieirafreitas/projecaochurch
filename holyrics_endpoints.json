@@ -1,0 +1,132 @@
+[
+  {
+    "method": "GET",
+    "endpoint": "/api/GetBibles",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/GetBibles",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/GetBooks",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/GetBooks",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/GetChapters",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/GetChapters",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/GetVerses",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/GetVerses",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/GetText",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/GetText",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/bible",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/bible",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/bibles",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/bibles",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/ShowVerse",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/ShowVerse",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/ShowText",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/ShowText",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/GetCurrentPresentation",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/GetCurrentPresentation",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/status",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/status",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/ping",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/ping",
+    "status": 401
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/version",
+    "status": 401
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/version",
+    "status": 401
+  }
+]

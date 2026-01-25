@@ -1,0 +1,290 @@
+{
+  "versions": {
+    "status": "ok",
+    "data": [
+      {
+        "key": "pt_acf",
+        "version": "pt_acf",
+        "title": "Almeida Corrigida Fiel",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_ra",
+        "version": "pt_ra",
+        "title": "Almeida Revista e Atualizada",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_arc",
+        "version": "pt_arc",
+        "title": "Almeida Revista e Corrigida",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_a21",
+        "version": "pt_a21",
+        "title": "Almeida Século 21",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_blt",
+        "version": "pt_blt",
+        "title": "Biblia Livre Para Todos",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_bkj1611",
+        "version": "pt_bkj1611",
+        "title": "BKJ Biblia King James Fiel 1611",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_kja",
+        "version": "pt_kja",
+        "title": "King James Atualizada",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_naa",
+        "version": "pt_naa",
+        "title": "Nova Almeida Atualizada",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_nbv",
+        "version": "pt_nbv",
+        "title": "Nova Bíblia Viva",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_ntlh",
+        "version": "pt_ntlh",
+        "title": "Nova Tradução na Linguagem de Hoje",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_nvi",
+        "version": "pt_nvi",
+        "title": "Nova Versão Internacional",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "pt_nvt",
+        "version": "pt_nvt",
+        "title": "Nova Versão Transformadora",
+        "language": {
+          "id": "pt",
+          "iso": "pt",
+          "name": "Português",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "ptpt_arc-pt",
+        "version": "ptpt_arc-pt",
+        "title": "Almeida Revista e Corrigida (Portugal)",
+        "language": {
+          "id": "ptpt",
+          "iso": "pt",
+          "name": "Português (Portugal)",
+          "alt_name": "Portuguese"
+        }
+      },
+      {
+        "key": "en_akjv",
+        "version": "en_akjv",
+        "title": "American King James Version",
+        "language": {
+          "id": "en",
+          "iso": "en",
+          "name": "English",
+          "alt_name": "English"
+        }
+      },
+      {
+        "key": "en_asv",
+        "version": "en_asv",
+        "title": "American Standard Version",
+        "language": {
+          "id": "en",
+          "iso": "en",
+          "name": "English",
+          "alt_name": "English"
+        }
+      },
+      {
+        "key": "en_bsb",
+        "version": "en_bsb",
+        "title": "Berean Standard Bible",
+        "language": {
+          "id": "en",
+          "iso": "en",
+          "name": "English",
+          "alt_name": "English"
+        }
+      },
+      {
+        "key": "en_fbv",
+        "version": "en_fbv",
+        "title": "Free Bible Version",
+        "language": {
+          "id": "en",
+          "iso": "en",
+          "name": "English",
+          "alt_name": "English"
+        }
+      },
+      {
+        "key": "en_gnv",
+        "version": "en_gnv",
+        "title": "Geneva Bible",
+        "language": {
+          "id": "en",
+          "iso": "en",
+          "name": "English",
+          "alt_name": "English"
+        }
+      },
+      {
+        "key": "en_kjv",
+        "version": "en_kjv",
+        "title": "King James Version",
+        "language": {
+          "id": "en",
+          "iso": "en",
+          "name": "English",
+          "alt_name": "English"
+        }
+      },
+      {
+        "key": "en_niv",
+        "version": "en_niv",
+        "title": "New International Version",
+        "language": {
+          "id": "en",
+          "iso": "en",
+          "name": "English",
+          "alt_name": "English"
+        }
+      },
+      {
+        "key": "es_lbla",
+        "version": "es_lbla",
+        "title": "La Biblia de las Américas",
+        "language": {
+          "id": "es",
+          "iso": "es",
+          "name": "Español",
+          "alt_name": "Spanish"
+        }
+      },
+      {
+        "key": "es_nbla",
+        "version": "es_nbla",
+        "title": "Nueva Biblia de las Américas",
+        "language": {
+          "id": "es",
+          "iso": "es",
+          "name": "Español",
+          "alt_name": "Spanish"
+        }
+      },
+      {
+        "key": "es_ntv",
+        "version": "es_ntv",
+        "title": "Nueva Traducción Viviente",
+        "language": {
+          "id": "es",
+          "iso": "es",
+          "name": "Español",
+          "alt_name": "Spanish"
+        }
+      },
+      {
+        "key": "es_nvi",
+        "version": "es_nvi",
+        "title": "Nueva Versión Internacional",
+        "language": {
+          "id": "es",
+          "iso": "es",
+          "name": "Español",
+          "alt_name": "Spanish"
+        }
+      },
+      {
+        "key": "es_rv",
+        "version": "es_rv",
+        "title": "Reina Valera 1909",
+        "language": {
+          "id": "es",
+          "iso": "es",
+          "name": "Español",
+          "alt_name": "Spanish"
+        }
+      }
+    ]
+  },
+  "john_3_16": {
+    "status": "error",
+    "error": "Field 'id' not found"
+  },
+  "genesis_1": {
+    "status": "error",
+    "error": "Field 'id' not found"
+  }
+}
