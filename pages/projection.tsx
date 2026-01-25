@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { splitTextIdeally } from '../lib/text-utils';
+import { supabase } from '../lib/supabaseClient';
 
 export default function ProjectionPage() {
     const [state, setState] = useState({
@@ -12,11 +13,31 @@ export default function ProjectionPage() {
 
     const VIRTUAL_WIDTH = 1024;
     const VIRTUAL_HEIGHT = 576; // 16:9
-
     const [scale, setScale] = useState(1);
     const textRef = useRef<HTMLDivElement>(null);
+    const lastTimestamp = useRef(0);
 
-    // Ajusta o scale para caber na janela do projetor/vMix
+    // Função centralizada para processar updates (Polling ou Realtime)
+    const processUpdate = (data: any) => {
+        if (!data || typeof data.verseText === 'undefined') return;
+
+        // Validação Cronológica
+        if (data.timestamp && data.timestamp < lastTimestamp.current) return;
+        if (data.timestamp) lastTimestamp.current = data.timestamp;
+
+        setState(prev => {
+            // Deep compare
+            if (prev.verseText === data.verseText &&
+                prev.reference === data.reference &&
+                prev.slideIndex === data.slideIndex &&
+                JSON.stringify(prev.style) === JSON.stringify(data.style)) {
+                return prev;
+            }
+            return { ...prev, ...data };
+        });
+    };
+
+    // Ajusta Scale
     useEffect(() => {
         const handleResize = () => {
             const scaleX = window.innerWidth / VIRTUAL_WIDTH;
@@ -28,46 +49,42 @@ export default function ProjectionPage() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // 1. BROADCAST INSTANTÂNEO (Zero Latência)
+    // 1. BROADCAST LOCAL (Zero Latência)
     useEffect(() => {
         const bc = new BroadcastChannel('bible_channel');
-        bc.onmessage = (ev) => {
-            if (ev.data) {
-                setState(prev => ({
-                    ...ev.data,
-                    // Mantém estilo antigo se o novo for undefined (otimização)
-                    style: ev.data.style === undefined ? prev.style : ev.data.style
-                }));
-            }
-        };
+        bc.onmessage = (ev) => { if (ev.data) processUpdate(ev.data); };
         return () => bc.close();
     }, []);
 
-    // 2. POLLING VIA REDE (Para vMix e Externos)
+    // 2. SUPABASE REALTIME (Baixa Latência via Internet)
+    useEffect(() => {
+        // Inscreve no canal de mudanças do banco
+        const channel = supabase
+            .channel('public:projection_state')
+            .on('postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'projection_state', filter: 'id=eq.1' },
+                (payload) => {
+                    if (payload.new && payload.new.data) {
+                        processUpdate(payload.new.data);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, []);
+
+    // 3. POLLING FALLBACK (Segurança se Realtime falhar)
     useEffect(() => {
         const interval = setInterval(async () => {
             try {
-                // Adiciona timestamp para evitar cache do navegador do vMix e proxies
                 const res = await fetch(`/api/status?t=${Date.now()}`);
-                if (!res.ok) return;
-
-                const data = await res.json();
-
-                // PROTEÇÃO ANTI-PISCAR: Se resposta vier vazia ou quebrada, ignora.
-                if (!data || typeof data.verseText === 'undefined') return;
-
-                setState(prev => {
-                    // Deep compare simples para evitar re-render desnecessário e flicker
-                    if (prev.verseText === data.verseText &&
-                        prev.reference === data.reference &&
-                        prev.slideIndex === data.slideIndex &&
-                        JSON.stringify(prev.style) === JSON.stringify(data.style)) {
-                        return prev;
-                    }
-                    return { ...prev, ...data };
-                });
+                if (res.ok) {
+                    const data = await res.json();
+                    processUpdate(data);
+                }
             } catch (err) { }
-        }, 800); // Aumento para 800ms para estabilidade na Vercel
+        }, 2000); // 2 segundos (relaxado, só pra garantir)
         return () => clearInterval(interval);
     }, []);
 

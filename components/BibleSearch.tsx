@@ -102,7 +102,8 @@ export default function BibleSearch() {
                 reference: activeSlide ? activeSlide.ref : '',
                 slideIndex: currentPartIndex,
                 version: currentVersion,
-                style: previewSettings || {}
+                style: previewSettings || {},
+                timestamp: Date.now() // TIMESTAMP para evitar race condition na projeção
             };
 
             // 1. BROADCAST LOCAL (AGORA SEMPRE COMPLETO PARA GARANTIR)
