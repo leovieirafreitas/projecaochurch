@@ -52,6 +52,10 @@ export default function ProjectionPage() {
                 if (!res.ok) return;
 
                 const data = await res.json();
+
+                // PROTEÇÃO ANTI-PISCAR: Se resposta vier vazia ou quebrada, ignora.
+                if (!data || typeof data.verseText === 'undefined') return;
+
                 setState(prev => {
                     // Deep compare simples para evitar re-render desnecessário e flicker
                     if (prev.verseText === data.verseText &&
@@ -63,7 +67,7 @@ export default function ProjectionPage() {
                     return { ...prev, ...data };
                 });
             } catch (err) { }
-        }, 200); // 200ms = 5 updates/segundo (Rápido o suficiente para projeção)
+        }, 800); // Aumento para 800ms para estabilidade na Vercel
         return () => clearInterval(interval);
     }, []);
 
