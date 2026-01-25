@@ -78,7 +78,14 @@ export default function BibleSearch() {
         const loadSettings = () => {
             const saved = localStorage.getItem('bible_settings');
             if (saved) {
-                try { setPreviewSettings(JSON.parse(saved)); } catch (e) { }
+                try {
+                    const parsed = JSON.parse(saved);
+                    setPreviewSettings((prev: any) => {
+                        // Deep Compare para evitar re-renders infinitos e spam de API
+                        if (JSON.stringify(prev) === JSON.stringify(parsed)) return prev;
+                        return parsed;
+                    });
+                } catch (e) { }
             }
         };
         loadSettings();
