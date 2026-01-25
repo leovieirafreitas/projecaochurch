@@ -245,10 +245,10 @@ export default function MusicPage() {
             {/* HEADER */}
             <div className="h-14 bg-purple-900 flex items-center justify-between px-4 border-b border-purple-700 shrink-0">
                 <div className="font-bold text-lg flex items-center gap-2">
-                    🎵 PROJEÇÃO DE LOUVOR
+                    PROJEÇÃO DE LOUVOR
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={() => window.location.href = '/'} className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm font-bold">⬅ Voltar para Bíblia</button>
+                    <button onClick={() => window.location.href = '/'} className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm font-bold">Voltar para Bíblia</button>
                     <button onClick={() => setIsEditorOpen(true)} className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-sm font-bold">🎨 Editar Tema</button>
                     <button onClick={() => window.open('/projection-music', '_blank', 'width=1920,height=1080')} className="bg-orange-600 hover:bg-orange-500 px-3 py-1 rounded text-sm font-bold">📺 Abrir Projetor Música</button>
                 </div>
@@ -386,7 +386,7 @@ export default function MusicPage() {
                                 </>
                             )}
 
-                            {!isEditingText && (
+                            {!isEditingText && (<>
                                 <select
                                     value={linesPerSlide}
                                     onChange={(e) => setLinesPerSlide(Number(e.target.value))}
@@ -397,7 +397,26 @@ export default function MusicPage() {
                                     <option value={4}>4 Linhas</option>
                                     <option value={99}>Auto</option>
                                 </select>
-                            )}
+
+                                <select
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setPreviewSettings((prev: any) => {
+                                            const novo = { ...(prev || {}), animation: val };
+                                            localStorage.setItem('music_settings', JSON.stringify(novo));
+                                            return novo;
+                                        });
+                                    }}
+                                    value={previewSettings?.animation || ''}
+                                    className="bg-[#111] border border-gray-600 text-white text-xs rounded px-2 py-1 outline-none focus:border-purple-500 w-32"
+                                >
+                                    <option value="">Sem Animação</option>
+                                    <option value="typewriter">Escrevendo</option>
+                                    <option value="fade">Fade Suave</option>
+                                    <option value="zoom">Dump (Show)</option>
+                                    <option value="slide">Slide Up</option>
+                                </select>
+                            </>)}
                         </div>
                     </div>
 

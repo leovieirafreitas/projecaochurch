@@ -307,7 +307,7 @@ export default function BibleSearch() {
 
     return (
         <div className="h-screen bg-[#1a1a1a] text-white flex overflow-hidden font-sans select-none">
-            <Head><title>Holyrics View</title></Head>
+            <Head><title>Project Church</title></Head>
 
             {/* COLUNA ESQUERDA FIXA (AGORA SÓ LISTA DE TEXTO) */}
             <div className="w-[350px] min-w-[350px] border-r border-[#333] flex flex-col bg-white text-black shrink-0 relative z-20 shadow-xl">
@@ -346,13 +346,12 @@ export default function BibleSearch() {
             {/* --- COLUNA DIREITA (GRID + LIVE PREVIEW EMBAIXO) --- */}
             <div className="flex-1 flex flex-col bg-[#222] min-w-[600px] overflow-hidden">
                 {/* HEADER / NAVEGAÇÃO MÚSICA */}
-                <div className="bg-[#1a1a1a] p-1 border-b border-black flex justify-between items-center shrink-0 h-10 px-2">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">📚 Livros</span>
+                <div className="bg-[#1a1a1a] p-1 border-b border-black flex items-center shrink-0 h-10 px-2 gap-2">
                     <button
                         onClick={() => window.location.href = '/music'}
                         className="bg-purple-700 hover:bg-purple-600 text-white text-[10px] uppercase font-bold px-3 py-1 rounded flex items-center gap-2 shadow-lg transition"
                     >
-                        🎵 Projetar Louvor
+                        PROJEÇÃO LOUVOR <span className="opacity-70 text-[9px] font-normal">(BETA)</span>
                     </button>
                 </div>
 

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 
@@ -6,6 +5,23 @@ import Head from 'next/head';
 const CHANNEL_NAME = 'music_channel';
 const API_ENDPOINT = '/api/status-music';
 // ----------------------------
+
+// COMPONENTE TYPEWRITER (EFEITO ESCREVENDO)
+const Typewriter = ({ text }: { text: string }) => {
+    const [d, setD] = useState('');
+    useEffect(() => {
+        setD('');
+        let i = 0;
+        // Velocidade da digitação
+        const interval = setInterval(() => {
+            setD(prev => text.substring(0, i));
+            i++;
+            if (i > text.length + 1) clearInterval(interval);
+        }, 30); // 30ms por letra
+        return () => clearInterval(interval);
+    }, [text]);
+    return <span style={{ whiteSpace: 'pre-wrap' }}>{d}</span>;
+};
 
 export default function MusicProjectionPage() {
     const [state, setState] = useState<any>({
@@ -17,8 +33,6 @@ export default function MusicProjectionPage() {
     });
 
     const [isLoaded, setIsLoaded] = useState(false);
-
-    // Scale para caber na tela
     const [scale, setScale] = useState(1);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -40,14 +54,13 @@ export default function MusicProjectionPage() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // 1. BROADCAST INSTANTÂNEO (Zero Latência)
+    // BROADCAST LISTENER
     useEffect(() => {
         const bc = new BroadcastChannel(CHANNEL_NAME);
         bc.onmessage = (ev) => {
             if (ev.data) {
                 setState((prev: any) => ({
                     ...ev.data,
-                    // Mantém estilo antigo se o novo for undefined (otimização)
                     style: ev.data.style === undefined ? prev.style : ev.data.style
                 }));
             }
@@ -55,45 +68,52 @@ export default function MusicProjectionPage() {
         return () => bc.close();
     }, []);
 
-    // 2. POLLING VIA REDE (Para uso remoto / Fallback)
+    // POLLING FALLBACK
     useEffect(() => {
         const interval = setInterval(async () => {
             try {
                 const res = await fetch(API_ENDPOINT);
                 const data = await res.json();
                 setState((prev: any) => {
-                    // Evita re-render se for igual
                     if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
                     return data;
                 });
                 setIsLoaded(true);
             } catch (err) { }
-        }, 1000); // 1s
+        }, 1000);
         return () => clearInterval(interval);
     }, []);
 
-    // Renderização
     const currentText = state.verseText || '';
     const reference = state.reference || '';
-
-    // Estilo Default (Caso style venha nulo no inicio)
     const style = state.style || {};
+    const animation = style.animation || 'none';
+
+    // RENDERIZAÇÃO CONDICIONAL DA ANIMAÇÃO
+    const renderTextContent = () => {
+        if (animation === 'typewriter') {
+            return <Typewriter text={currentText} />;
+        }
+        return currentText;
+    };
+
+    // CLASSES DE ANIMAÇÃO CSS
+    const getAnimationClass = () => {
+        if (!currentText) return '';
+        switch (animation) {
+            case 'fade': return 'animate-fade';
+            case 'slide': return 'animate-slide-up';
+            case 'zoom': return 'animate-zoom';
+            default: return '';
+        }
+    };
 
     const VIRTUAL_WIDTH = 1024;
     const VIRTUAL_HEIGHT = 576;
-
-    // Calcular Posições com base no Style
     const bgColor = style.backgroundColor || '#000000';
     const bgImage = style.backgroundImage || null;
-
-    // Guias não aparecem na projeção
-
-    // Fontes
     const fontFamily = style.fontFamily || 'Inter, sans-serif';
-
-    // Box Texto
     const textBox = style.textBox || { x: 50, y: 50, w: 80, h: 40 };
-    // Box Ref
     const refPos = style.refPos || { x: 50, y: 80 };
 
     return (
@@ -101,11 +121,33 @@ export default function MusicProjectionPage() {
             <Head>
                 <title>Projeção de Música</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
-                {/* Fontes */}
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Lora:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;700;900&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet" />
+                {/* CSS DAS ANIMAÇÕES */}
+                <style>{`
+                    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                    .animate-fade {
+                        animation: fadeIn 0.6s ease-out forwards;
+                    }
+
+                    @keyframes slideUp { 
+                        from { opacity: 0; transform: translate(-50%, -40%); } 
+                        to { opacity: 1; transform: translate(-50%, -50%); } 
+                    }
+                    .animate-slide-up {
+                        animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                    }
+
+                    @keyframes zoomIn { 
+                        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 
+                        70% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+                        100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 
+                    }
+                    .animate-zoom {
+                        animation: zoomIn 0.5s ease-out forwards;
+                    }
+                `}</style>
             </Head>
 
-            {/* CONTAINER ESCALÁVEL */}
             <div
                 ref={containerRef}
                 style={{
@@ -118,44 +160,43 @@ export default function MusicProjectionPage() {
                     overflow: 'hidden'
                 }}
             >
-                {/* Fundo Imagem */}
                 {bgImage && <img src={bgImage} alt="bg" className="absolute inset-0 w-full h-full object-cover" />}
 
-                {/* --- CONTEÚDO (TEXTO + REF) --- */}
-                {/* Se não tiver texto, não renderiza nada para ficar limpo (Black) */}
                 {currentText && (
                     <>
-                        {/* Texto Principal */}
                         <div
+                            // KEY: Força o React a recriar o elemento quando o texto muda, disparando a animação CSS do zero
+                            key={`${currentText}-${animation}`}
+                            className={getAnimationClass()}
                             style={{
                                 position: 'absolute',
                                 left: `${textBox.x}%`,
                                 top: `${textBox.y}%`,
                                 width: `${textBox.w}%`,
                                 height: `${textBox.h}%`,
-                                transform: 'translate(-50%, -50%)',
+                                transform: 'translate(-50%, -50%)', // Importante para centralizar, mas as animações sobrescrevem isso nos keyframes slideUp e Zoom
                                 display: 'flex',
                                 flexDirection: 'column',
                                 justifyContent: style.verticalAlign || 'center',
-                                alignItems: 'normal',
+                                alignItems: 'center',
                                 textAlign: style.textAlign || 'center',
                                 color: style.color || '#ffffff',
                                 fontFamily: fontFamily,
                                 fontSize: `${style.fontSize || 40}px`,
-                                fontWeight: style.fontWeight || '700', // Música geralmente é bold
-                                textTransform: style.textTransform || 'uppercase', // Música fica melhor uppercase
-                                textShadow: '2px 2px 4px rgba(0,0,0,0.8)', // Sombra padrão se não tiver chroma
+                                fontWeight: style.fontWeight || '700',
+                                textTransform: style.textTransform || 'uppercase',
+                                textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
                                 whiteSpace: 'pre-wrap',
                                 lineHeight: 1.2,
                                 maxWidth: '100%',
                                 maxHeight: '100%',
-                                overflow: 'hidden'
+                                overflow: 'visible'
                             }}
                         >
-                            {currentText}
+                            {renderTextContent()}
                         </div>
 
-                        {/* Referência (Nome da Música) */}
+                        {/* Referência (Nome da Música) - Sem animação de entrada para não distrair */}
                         {reference && (style.showRef !== false) && (
                             <div
                                 style={{
