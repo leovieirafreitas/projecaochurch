@@ -191,7 +191,7 @@ export default function BibleSearch() {
                 const parts = txt.split('___V');
                 const versesFound: { num: number, text: string }[] = [];
 
-                parts.forEach(part => {
+                parts.forEach((part: string) => {
                     const match = part.match(/^(\d+)___(.*)/);
                     if (match) {
                         const num = parseInt(match[1]);
