@@ -4,6 +4,7 @@ import { YouVersionClient } from '../lib/youversion-client';
 import { splitTextIdeally } from '../lib/text-utils';
 import Head from 'next/head';
 import BibleProjection from './BibleProjection';
+import { useProjectionSync } from '../hooks/useProjectionSync';
 
 // DADOS DE LIVROS E GRUPOS (MANTIDOS)
 const BOOK_GROUPS = [
@@ -120,7 +121,9 @@ export default function BibleSearch() {
     }, []);
 
 
-    // --- SINCRONIZAÇÃO COM API DE PROJEÇÃO EXTERNA (LINK ÚNICO) ---
+    // --- SINCRONIZAÇÃO COM API DE PROJEÇÃO EXTERNA (SUPABASE REALTIME) ---
+    const { sendState } = useProjectionSync('sender');
+
     useEffect(() => {
         const syncToApi = async () => {
             const shouldShow = activeSlide && isProjectionVisible;
@@ -130,31 +133,10 @@ export default function BibleSearch() {
                 slideIndex: currentPartIndex,
                 version: currentVersion,
                 style: previewSettings || {},
-                timestamp: Date.now() // TIMESTAMP para evitar race condition na projeção
+                timestamp: Date.now()
             };
-
-            // 1. BROADCAST LOCAL (AGORA SEMPRE COMPLETO PARA GARANTIR)
-            try {
-                const bc = new BroadcastChannel('bible_channel');
-                bc.postMessage(payload);
-                bc.close();
-            } catch (e) { console.error(e); }
-
-            // 2. SYNC VIA REDE (FALLBACK - OUTROS PCS)
-            try {
-                // Não await para não travar UI
-                // fetch com keepalive para performance
-                fetch('/api/status', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    keepalive: true
-                }).catch(() => { }); // catch silencioso para não poluir console
-            } catch (error) {
-                console.error("Falha ao sincronizar com link externo:", error);
-            }
+            sendState(payload);
         };
-
         syncToApi();
     }, [activeSlide, currentPartIndex, previewSettings, currentVersion, isProjectionVisible]);
 

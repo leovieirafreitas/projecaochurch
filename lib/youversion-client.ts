@@ -3,7 +3,9 @@ const YOUVERSION_BASE_URL = 'https://api.youversion.com/v1';
 const APP_KEY = '8CIUKFa2HDqazT1Vu4P9kpZPZVVtZMpvZiGBzt3GDggWf3q7';
 
 // --- BIBLE BRAIN (DBT) CONFIG ---
-const DBT_KEY = "db346576-060a-4787-8bc2-5386e8e3be8d";
+// --- BIBLE BRAIN (DBT) CONFIG ---
+// Usa a chave do ambiente (NEXT_PUBLIC para frontend, ou variável de servidor)
+const DBT_KEY = process.env.NEXT_PUBLIC_BIBLEBRAIN_API_KEY || process.env.BIBLEBRAIN_API_KEY || "db346576-060a-4787-8bc2-5386e8e3be8d";
 const DBT_BIBLES: Record<string, any> = {
     'PORACF': { id: 'PORACF', name: 'Almeida Corrigida Fiel (Bible Brain)', abbr: 'ACF', ot: 'PORACF', nt: 'PORACF' },
     'PORBBS': { id: 'PORBBS', name: 'Nova Almeida Atualizada', abbr: 'NAA', ot: 'PORBBSO_ET', nt: 'PORBBSN_ET' },

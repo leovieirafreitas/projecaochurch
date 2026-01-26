@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
+import { useProjectionSync } from '../hooks/useProjectionSync';
 
 // --- CONFIGURAÇÃO GLOBAL ---
 const CHANNEL_NAME = 'music_channel';
@@ -54,35 +55,22 @@ export default function MusicProjectionPage() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // BROADCAST LISTENER
-    useEffect(() => {
-        const bc = new BroadcastChannel(CHANNEL_NAME);
-        bc.onmessage = (ev) => {
-            if (ev.data) {
-                setState((prev: any) => ({
-                    ...ev.data,
-                    style: ev.data.style === undefined ? prev.style : ev.data.style
-                }));
-            }
-        };
-        return () => bc.close();
-    }, []);
 
-    // POLLING FALLBACK
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            try {
-                const res = await fetch(API_ENDPOINT);
-                const data = await res.json();
-                setState((prev: any) => {
-                    if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
-                    return data;
-                });
-                setIsLoaded(true);
-            } catch (err) { }
-        }, 1000);
-        return () => clearInterval(interval);
-    }, []);
+    // --- SINCRONIZAÇÃO UNIFICADA (Supabase + Broadcast) ---
+    useProjectionSync('receiver', (data: any) => {
+        if (!data) return;
+        setState((prev: any) => {
+            // Verifica se o dado é realmente novo (deep compare simplificado)
+            if (JSON.stringify(prev) === JSON.stringify({ ...prev, ...data })) return prev;
+
+            return {
+                ...prev,
+                ...data,
+                style: data.style === undefined ? prev.style : data.style
+            };
+        });
+        setIsLoaded(true);
+    });
 
     const currentText = state.verseText || '';
     const reference = state.reference || '';

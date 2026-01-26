@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { splitTextIdeally } from '../lib/text-utils';
 import { supabase } from '../lib/supabaseClient';
+import { useProjectionSync } from '../hooks/useProjectionSync';
 
 export default function ProjectionPage() {
     const [state, setState] = useState({
@@ -49,44 +50,9 @@ export default function ProjectionPage() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // 1. BROADCAST LOCAL (Zero Latência)
-    useEffect(() => {
-        const bc = new BroadcastChannel('bible_channel');
-        bc.onmessage = (ev) => { if (ev.data) processUpdate(ev.data); };
-        return () => bc.close();
-    }, []);
 
-    // 2. SUPABASE REALTIME (Baixa Latência via Internet)
-    useEffect(() => {
-        // Inscreve no canal de mudanças do banco
-        const channel = supabase
-            .channel('public:projection_state')
-            .on('postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'projection_state', filter: 'id=eq.1' },
-                (payload) => {
-                    if (payload.new && payload.new.data) {
-                        processUpdate(payload.new.data);
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
-    }, []);
-
-    // 3. POLLING FALLBACK (Segurança se Realtime falhar)
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/status?t=${Date.now()}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    processUpdate(data);
-                }
-            } catch (err) { }
-        }, 100); // 100ms (VELOCIDADE MÁXIMA - Cache Local)
-        return () => clearInterval(interval);
-    }, []);
+    // --- SINCRONIZAÇÃO UNIFICADA (Supabase + Broadcast) ---
+    useProjectionSync('receiver', processUpdate);
 
     // AUTO-FIT (Ajuste Automático de Tamanho)
     useEffect(() => {
