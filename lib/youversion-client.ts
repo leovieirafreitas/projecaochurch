@@ -16,8 +16,30 @@ const DBT_BIBLES: Record<string, any> = {
 /**
  * Cliente para API Oficial YouVersion (Via Proxy Local) + Fallback Externo + Bible Brain (DBT)
  */
+// Declare Tauri globals
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare global {
+    interface Window {
+        __TAURI__?: {
+            invoke: (cmd: string, args?: any) => Promise<any>;
+        };
+    }
+}
+
 export class YouVersionClient {
     private static async request(endpoint: string, params: Record<string, string> = {}) {
+        // TAURI PATH (Rust Backend)
+        if (typeof window !== 'undefined' && window.__TAURI__) {
+            try {
+                // O Rust espera params como Map<String, String>
+                return await window.__TAURI__.invoke('youversion_proxy', { endpoint, params });
+            } catch (e) {
+                console.error("[Tauri] Proxy Error:", e);
+                return null;
+            }
+        }
+
+        // BROWSER / ELECTRON OLD PATH (Node Server)
         const url = new URL('/api/proxy', typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
         url.searchParams.append('endpoint', endpoint);
 

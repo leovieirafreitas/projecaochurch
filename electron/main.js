@@ -85,8 +85,9 @@ function createWindow() {
 async function startServer() {
     if (isDev) return;
 
-    const serverPath = path.join(__dirname, 'server.js');
-    log(`Attempting to start server at: ${serverPath}`);
+    // USE LIGHT SERVER INSTEAD OF NEXT.JS SERVER
+    const serverPath = path.join(__dirname, 'light-server.js');
+    log(`Attempting to start Light Server at: ${serverPath}`);
 
     if (!fs.existsSync(serverPath)) {
         log(`ERROR: Server file not found at ${serverPath}`);

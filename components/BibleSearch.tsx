@@ -460,25 +460,38 @@ export default function BibleSearch() {
                                 onClick={async () => {
                                     let baseUrl = window.location.origin;
 
-                                    // Tenta obter IP local da API
-                                    try {
-                                        const res = await fetch('/api/local-ip');
-                                        if (res.ok) {
-                                            const data = await res.json();
-                                            if (data.ip && data.ip !== 'localhost') {
-                                                const port = window.location.port || '3000';
-                                                baseUrl = `http://${data.ip}:${port}`;
+                                    // Tentar obter IP via Tauri Invoke (Mais confiável)
+                                    if (window.__TAURI__) {
+                                        try {
+                                            const ip = await window.__TAURI__.invoke('get_local_ip');
+                                            if (ip) {
+                                                baseUrl = `http://${ip}:3000`; // Porta 3000 fixa do Actix
                                             }
+                                        } catch (e) {
+                                            console.error("Erro Tauri IP:", e);
                                         }
-                                    } catch (e) {
-                                        console.error('Falha ao obter IP local', e);
+                                    } else {
+                                        // Fallback Fetch (Legacy/Browser Dev)
+                                        try {
+                                            const res = await fetch('/api/local-ip');
+                                            if (res.ok) {
+                                                const data = await res.json();
+                                                if (data.ip && data.ip !== 'localhost') {
+                                                    const port = window.location.port || '3000';
+                                                    baseUrl = `http://${data.ip}:${port}`;
+                                                }
+                                            }
+                                        } catch (e) {
+                                            console.error('Falha ao obter IP local via Fetch', e);
+                                        }
                                     }
 
                                     const text = baseUrl + '/projection';
 
                                     try {
                                         await navigator.clipboard.writeText(text);
-                                        alert('Link de REDE copiado: ' + text + '\n\nAgora você pode abrir este link em outros dispositivos na mesma rede Wi-Fi!');
+                                        // Alerta simples e confiável
+                                        alert(`✅ LINK COPIADO COM SUCESSO!\n\n${text}\n\nAbra este link no navegador do celular/tablet conectado ao mesmo Wi-Fi.`);
                                     } catch (err) {
                                         // Fallback para Electron/Legacy
                                         try {

@@ -10,7 +10,8 @@
     "lint": "eslint",
     "electron:dev": "concurrently -k \"cross-env CONFIG_FILE=.env.local next dev\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:build": "next build && electron-builder",
-    "dist": "npm run electron:build"
+    "dist": "npm run electron:build",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.91.1",
@@ -22,6 +23,8 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.19",
+    "@tauri-apps/api": "^2.9.1",
+    "@tauri-apps/cli": "^1.6.3",
     "@types/node": "^20.19.30",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -40,11 +43,16 @@
     "appId": "com.chamachurch.biblia",
     "productName": "Bíblia Online",
     "files": [
-      ".next/**/*",
+      "out/**/*",
       "public/**/*",
       "electron/**/*",
+      "songs_db.json",
       "package.json",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/next",
+      "!node_modules/typescript",
+      "!node_modules/@types",
+      "!node_modules/eslint*"
     ],
     "directories": {
       "output": "dist"

@@ -1,0 +1,88 @@
+{
+    "build": {
+        "beforeDevCommand": "npm run dev",
+        "beforeBuildCommand": "",
+        "devPath": "http://localhost:3000",
+        "distDir": "../out",
+        "withGlobalTauri": true
+    },
+    "package": {
+        "productName": "biblia-online",
+        "version": "0.1.0"
+    },
+    "tauri": {
+        "allowlist": {
+            "all": false,
+            "shell": {
+                "all": false,
+                "open": true
+            },
+            "http": {
+                "all": true,
+                "request": true,
+                "scope": [
+                    "https://api.youversion.com/*",
+                    "https://*.dbt.io/*",
+                    "https://bible-api.com/*"
+                ]
+            },
+            "fs": {
+                "all": true,
+                "scope": [
+                    "$APP_DATA/*",
+                    "$RESOURCE/*"
+                ]
+            },
+            "path": {
+                "all": true
+            }
+        },
+        "bundle": {
+            "active": true,
+            "category": "DeveloperTool",
+            "copyright": "",
+            "deb": {
+                "depends": []
+            },
+            "externalBin": [],
+            "icon": [
+                "icons/icon.ico"
+            ],
+            "identifier": "com.chamachurch.biblia",
+            "longDescription": "",
+            "macOS": {
+                "entitlements": null,
+                "exceptionDomain": "",
+                "frameworks": [],
+                "providerShortName": null,
+                "signingIdentity": null
+            },
+            "resources": [
+                "../songs_db.json",
+                "../out/**/*"
+            ],
+            "shortDescription": "",
+            "targets": [],
+            "windows": {
+                "certificateThumbprint": null,
+                "digestAlgorithm": "sha256",
+                "timestampUrl": ""
+            }
+        },
+        "security": {
+            "csp": null
+        },
+        "updater": {
+            "active": false
+        },
+        "windows": [
+            {
+                "fullscreen": false,
+                "resizable": true,
+                "title": "Bíblia Online - Chama Church",
+                "width": 1280,
+                "height": 720
+            }
+        ]
+    }
+}

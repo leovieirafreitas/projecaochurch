@@ -1,0 +1,38 @@
+
+> biblia-online@0.1.0 tauri
+> tauri build
+
+   Compiling biblia-online v0.1.0 (C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri)
+warning: unused import: `tauri::Manager`
+ --> src\main.rs:6:5
+  |
+6 | use tauri::Manager;
+  |     ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `ProxyRequest` is never constructed
+  --> src\main.rs:23:8
+   |
+23 | struct ProxyRequest {
+   |        ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `ProjectionState` is never constructed
+   --> src\main.rs:130:8
+    |
+130 | struct ProjectionState {
+    |        ^^^^^^^^^^^^^^^
+
+warning: `biblia-online` (bin "biblia-online") generated 3 warnings
+    Finished `release` profile [optimized] target(s) in 15.31s
+        Info Target: x64
+     Running candle for "main.wxs"
+     Running light to produce C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri\target\release\bundle\msi\biblia-online_0.1.0_x64_en-US.msi
+        Info Target: x64
+     Running makensis.exe to produce C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri\target\release\bundle\nsis\biblia-online_0.1.0_x64-setup.exe
+    Finished 2 bundles at:
+        C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri\target\release\bundle\msi\biblia-online_0.1.0_x64_en-US.msi
+        C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri\target\release\bundle\nsis\biblia-online_0.1.0_x64-setup.exe
+
