@@ -456,8 +456,52 @@ export default function BibleSearch() {
                             )}
                         </div>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => { navigator.clipboard.writeText(window.location.origin + '/projection'); alert('Link copiado!'); }} className="bg-[#333] hover:bg-[#444] text-[9px] text-gray-300 uppercase font-bold px-2 py-1 rounded flex items-center gap-1 transition border border-[#444]">
-                                Link Projeção
+                            <button
+                                onClick={async () => {
+                                    let baseUrl = window.location.origin;
+
+                                    // Tenta obter IP local da API
+                                    try {
+                                        const res = await fetch('/api/local-ip');
+                                        if (res.ok) {
+                                            const data = await res.json();
+                                            if (data.ip && data.ip !== 'localhost') {
+                                                const port = window.location.port || '3000';
+                                                baseUrl = `http://${data.ip}:${port}`;
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.error('Falha ao obter IP local', e);
+                                    }
+
+                                    const text = baseUrl + '/projection';
+
+                                    try {
+                                        await navigator.clipboard.writeText(text);
+                                        alert('Link de REDE copiado: ' + text + '\n\nAgora você pode abrir este link em outros dispositivos na mesma rede Wi-Fi!');
+                                    } catch (err) {
+                                        // Fallback para Electron/Legacy
+                                        try {
+                                            const textArea = document.createElement("textarea");
+                                            textArea.value = text;
+                                            textArea.style.position = "fixed";
+                                            document.body.appendChild(textArea);
+                                            textArea.focus();
+                                            textArea.select();
+                                            const successful = document.execCommand('copy');
+                                            document.body.removeChild(textArea);
+                                            if (successful) {
+                                                alert('Link de REDE copiado (Modo Compatibilidade): ' + text);
+                                            } else {
+                                                throw new Error('Fallback falhou');
+                                            }
+                                        } catch (fallbackErr) {
+                                            prompt('Link de REDE (Copie manualmente):', text);
+                                        }
+                                    }
+                                }}
+                                className="bg-[#333] hover:bg-[#444] text-[9px] text-gray-300 uppercase font-bold px-2 py-1 rounded flex items-center gap-1 transition border border-[#444]">
+                                Link Projeção (Rede)
                             </button>
                             <button onClick={() => setIsProjectionVisible(!isProjectionVisible)} className={`${isProjectionVisible ? 'bg-red-900/50 hover:bg-red-900 text-red-200 border-red-900/50' : 'bg-green-700 hover:bg-green-600 text-white border-green-700'} text-[9px] uppercase font-bold px-2 py-1 rounded flex items-center gap-1 transition border w-24 justify-center`}>
                                 {isProjectionVisible ? '⏹ Parar' : '▶ Retomar'}

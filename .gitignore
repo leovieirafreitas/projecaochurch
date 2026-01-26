@@ -24,6 +24,11 @@
 .DS_Store
 *.pem
 
+# Electron
+dist/
+release/
+build/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
