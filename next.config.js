@@ -3,9 +3,8 @@ const nextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
-    // 'export' cria HTMLs estáticos na pasta 'out'
-    output: 'export',
-    // Imagens não otimizadas são necessárias para Static Export
+    // REMOVIDO 'output: export' para permitir API Routes (/api/proxy)
+    // Isso é necessário para a versão web funcionar com YouVersion API
     images: {
         unoptimized: true
     }

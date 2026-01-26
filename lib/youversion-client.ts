@@ -72,12 +72,7 @@ export class YouVersionClient {
     }
 
     static async getVersions(): Promise<any[]> {
-        // Revertendo para 'por' que é o padrão seguro da API
-        const data = await this.request('/bibles', { 'language_ranges[]': 'por' });
-        const versions = data?.data || [];
-
         // Converter DBT BIBLES para formato YouVersion
-        // Nota: O front-end usa 'local_title', 'name' ou 'abbreviation'.
         const dbtList = Object.values(DBT_BIBLES).map(b => ({
             id: b.id,
             abbreviation: b.abbr,
@@ -87,8 +82,8 @@ export class YouVersionClient {
             lang: 'pt-br'
         }));
 
-        // Injetar Almeida Externa no topo (Legacy)
-        return [
+        // Versões alternativas sempre disponíveis
+        const alternativeVersions = [
             {
                 id: 'ALMEIDA_EXTERNA',
                 abbreviation: 'ACF (Old)',
@@ -97,9 +92,25 @@ export class YouVersionClient {
                 description: 'Versão externa via Bible-API',
                 lang: 'pt'
             },
-            ...dbtList,
-            ...versions
+            ...dbtList
         ];
+
+        try {
+            // Tentar buscar da API YouVersion
+            const data = await this.request('/bibles', { 'language_ranges[]': 'por' });
+            const versions = data?.data || [];
+
+            if (versions.length > 0) {
+                console.log('[YouVersion] API funcionando, retornando', versions.length, 'versões');
+                return [...alternativeVersions, ...versions];
+            } else {
+                console.warn('[YouVersion] API retornou vazio, usando apenas versões alternativas');
+                return alternativeVersions;
+            }
+        } catch (e) {
+            console.error('[YouVersion] API falhou, usando apenas versões alternativas:', e);
+            return alternativeVersions;
+        }
     }
 
     static async getBooks(bibleId: string): Promise<any[]> {

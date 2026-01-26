@@ -62,10 +62,23 @@ export default async function handler(req: any, res: any) {
 
         proxyRes.on('end', () => {
             console.log(`[Proxy-HTTPS] Body Size: ${rawData.length}`);
+            console.log(`[Proxy-HTTPS] Status Code: ${proxyRes.statusCode}`);
+            console.log(`[Proxy-HTTPS] First 500 chars:`, rawData.substring(0, 500));
 
             // Se vazio, alerta
             if (!rawData) {
+                console.error('[Proxy-HTTPS] EMPTY BODY FROM UPSTREAM');
                 return res.status(200).json({ error: 'EMPTY_BODY_FROM_UPSTREAM', status: proxyRes.statusCode });
+            }
+
+            // Se for 404 ou erro, retornar o erro
+            if (proxyRes.statusCode && proxyRes.statusCode >= 400) {
+                console.error(`[Proxy-HTTPS] API Error ${proxyRes.statusCode}:`, rawData);
+                return res.status(proxyRes.statusCode).json({
+                    error: 'API_ERROR',
+                    status: proxyRes.statusCode,
+                    message: rawData
+                });
             }
 
             try {

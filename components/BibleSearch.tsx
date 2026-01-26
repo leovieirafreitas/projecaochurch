@@ -152,7 +152,21 @@ export default function BibleSearch() {
         }
     }, [activeSlide]);
 
-    useEffect(() => { loadVersions(); }, []);
+    useEffect(() => {
+        console.log('[DEBUG] Component mounted, loading versions...');
+        loadVersions();
+    }, []);
+
+    // Carregar capítulos e versículos iniciais
+    useEffect(() => {
+        if (currentVersion && selectedBookId) {
+            console.log('[DEBUG] Initial load - Version:', currentVersion, 'Book:', selectedBookId);
+            loadChapters(selectedBookId);
+            if (selectedChapterId) {
+                loadChapterText(selectedBookId, selectedChapterId);
+            }
+        }
+    }, [currentVersion]);
 
     // ATUALIZAÇÃO DE CAPÍTULOS E FILTRO NT
     useEffect(() => {
@@ -168,32 +182,54 @@ export default function BibleSearch() {
             selectBook('MAT');
             return;
         }
-
-        if (selectedChapterId) {
-            loadChapterText(selectedBookId, selectedChapterId);
-            loadChapters(selectedBookId);
-        }
-    }, [currentVersion]);
+    }, [currentVersion, selectedBookId]);
 
     const loadVersions = async () => {
         try {
+            console.log('[DEBUG] Loading versions...');
             const data = await YouVersionClient.getVersions();
+            console.log('[DEBUG] Versions loaded:', data?.length || 0);
             setVersions(data.filter(v => v.abbreviation !== 'BLT'));
             const saved = localStorage.getItem('bible_version');
-            if (saved) setCurrentVersion(saved);
-            else {
+            if (saved) {
+                console.log('[DEBUG] Using saved version:', saved);
+                setCurrentVersion(saved);
+            } else {
+                // Tentar NVI primeiro
                 const nvi = data.find(v => v.abbreviation === 'NVI');
-                if (nvi) setCurrentVersion(nvi.id);
+                if (nvi) {
+                    console.log('[DEBUG] Using NVI as default:', nvi.id);
+                    setCurrentVersion(nvi.id);
+                } else {
+                    // Fallback para ALMEIDA_EXTERNA se NVI não estiver disponível
+                    const almeida = data.find(v => v.id === 'ALMEIDA_EXTERNA');
+                    if (almeida) {
+                        console.log('[DEBUG] NVI not available, using ALMEIDA_EXTERNA as fallback');
+                        setCurrentVersion('ALMEIDA_EXTERNA');
+                    } else if (data.length > 0) {
+                        // Usar a primeira versão disponível
+                        console.log('[DEBUG] Using first available version:', data[0].id);
+                        setCurrentVersion(data[0].id);
+                    }
+                }
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error('[ERROR] Failed to load versions:', e);
+            // Em caso de erro total, usar ALMEIDA_EXTERNA
+            setCurrentVersion('ALMEIDA_EXTERNA');
+        }
     };
 
     const loadChapters = async (bookId: string) => {
         try {
+            console.log('[DEBUG] Loading chapters for book:', bookId, 'Version:', currentVersion);
             const chaps = await YouVersionClient.getChapters(currentVersion, bookId);
+            console.log('[DEBUG] Chapters loaded:', chaps?.length || 0);
             if (chaps) setChapterList(chaps);
             return chaps;
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error('[ERROR] Failed to load chapters:', e);
+        }
     };
 
     const loadChapterText = async (bookId: string, chapId: string) => {

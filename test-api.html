@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Bible API</title>
+</head>
+<body>
+    <h1>Testing Bible API</h1>
+    <div id="output"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        async function testAPI() {
+            try {
+                output.innerHTML += '<p>Testing versions...</p>';
+                
+                // Test 1: Get Versions
+                const versionsRes = await fetch('/api/proxy?endpoint=/bibles&language_ranges[]=por');
+                const versionsData = await versionsRes.json();
+                output.innerHTML += `<p>Versions Response: ${JSON.stringify(versionsData).substring(0, 200)}...</p>`;
+                
+                // Test 2: Get Books
+                output.innerHTML += '<p>Testing books...</p>';
+                const booksRes = await fetch('/api/proxy?endpoint=/bibles/129/books');
+                const booksData = await booksRes.json();
+                output.innerHTML += `<p>Books Response: ${JSON.stringify(booksData).substring(0, 200)}...</p>`;
+                
+                // Test 3: Get Chapters
+                output.innerHTML += '<p>Testing chapters...</p>';
+                const chaptersRes = await fetch('/api/proxy?endpoint=/bibles/129/books/GEN/chapters');
+                const chaptersData = await chaptersRes.json();
+                output.innerHTML += `<p>Chapters Response: ${JSON.stringify(chaptersData).substring(0, 200)}...</p>`;
+                
+                // Test 4: Get Passage
+                output.innerHTML += '<p>Testing passage...</p>';
+                const passageRes = await fetch('/api/proxy?endpoint=/bibles/129/passages/GEN.1&content_type=html&format=html');
+                const passageData = await passageRes.json();
+                output.innerHTML += `<p>Passage Response: ${JSON.stringify(passageData).substring(0, 500)}...</p>`;
+                
+            } catch (error) {
+                output.innerHTML += `<p style="color: red;">Error: ${error.message}</p>`;
+                console.error('Full error:', error);
+            }
+        }
+        
+        testAPI();
+    </script>
+</body>
+</html>
