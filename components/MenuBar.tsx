@@ -3,19 +3,79 @@ import dynamic from 'next/dynamic';
 import { ProjectManager } from '../lib/project-manager';
 
 const ProjectionLinksModal = dynamic(() => import('./ProjectionLinksModal'), { ssr: false });
+const NewProjectModal = dynamic(() => import('./NewProjectModal'), { ssr: false });
+const DownloadedBiblesModal = dynamic(() => import('./DownloadedBiblesModal'), { ssr: false });
 
 export default function MenuBar() {
     const [showFileMenu, setShowFileMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
-    const [recentProjects, setRecentProjects] = useState<string[]>([]);
+    const [recentProjects, setRecentProjects] = useState<{ path: string, label: string }[]>([]);
+    const [currentProjectDisplay, setCurrentProjectDisplay] = useState<string | null>(null);
     const [showLinksModal, setShowLinksModal] = useState(false);
+    const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+    const [showOfflineBiblesModal, setShowOfflineBiblesModal] = useState(false);
 
     useEffect(() => {
-        setRecentProjects(ProjectManager.getRecents());
+        const load = async () => {
+            const recents = await ProjectManager.getRecentsWithLabels();
+            setRecentProjects(recents);
 
-        const updateRecents = () => setRecentProjects(ProjectManager.getRecents());
+            const currentPath = localStorage.getItem('current_project_path');
+            if (currentPath) {
+                try {
+                    // Tenta formatar bonito: DRIVE:.../PASTA/ARQUIVO
+                    // Ex: C:\Users\Docs\MediaChurch\Projetos\Culto.chama
+                    const parts = currentPath.split(/[\\/]/);
+                    const name = parts.pop() || 'Sem Título';
+                    const parentFolder = parts.pop() || '';
+
+                    // Pega o drive (ex: C:)
+                    const driveMatch = currentPath.match(/^([a-zA-Z]:)/);
+                    const drive = driveMatch ? driveMatch[1] : '';
+
+                    let display = 'Projeto';
+                    if (drive) display += `/${drive}`;
+                    if (parentFolder) display += `/${parentFolder}`;
+                    display += `/${name}`;
+
+                    setCurrentProjectDisplay(display);
+                } catch (e) {
+                    setCurrentProjectDisplay(currentPath);
+                }
+            } else {
+                setCurrentProjectDisplay(null);
+            }
+        };
+
+        load();
+
+        const updateRecents = () => load();
         window.addEventListener('recents-updated', updateRecents);
         return () => window.removeEventListener('recents-updated', updateRecents);
+    }, []);
+
+    // Atalho CTRL + S e CTRL + N
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // CTRL + S: Salvar
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    // Salvar Como
+                    ProjectManager.saveProject(null, true);
+                } else {
+                    // Salvar
+                    ProjectManager.saveProject();
+                }
+            }
+            // CTRL + N: Novo Projeto
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                setShowNewProjectModal(true);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
     // Fechar menus ao clicar fora
@@ -35,10 +95,17 @@ export default function MenuBar() {
     };
 
     const handleExit = async () => {
+        if ((window as any).electronAPI) {
+            window.close();
+            return;
+        }
+
         if (typeof window !== 'undefined' && (window as any).__TAURI__) {
             try {
-                const { appWindow } = await import('@tauri-apps/api/window');
-                appWindow.close();
+                const windowModule = await import('@tauri-apps/api/window');
+                // @ts-ignore
+                const appWindow = windowModule.appWindow || (windowModule.getCurrentWindow ? windowModule.getCurrentWindow() : null);
+                if (appWindow) appWindow.close();
             } catch (e) {
                 console.error(e);
             }
@@ -52,8 +119,6 @@ export default function MenuBar() {
         <>
             <div className="fixed top-0 left-0 right-0 z-50 bg-[#2d2d2d] border-b border-[#111] select-none h-8 flex items-center shadow-sm">
                 <div className="flex items-center h-full text-xs text-gray-300 font-sans px-1">
-
-
 
                     {/* MENU ARQUIVOS */}
                     <div className="relative group">
@@ -70,13 +135,26 @@ export default function MenuBar() {
 
                         {showFileMenu && (
                             <div className="absolute top-8 left-0 bg-[#2d2d2d] border border-[#111] shadow-xl min-w-[220px] py-1 flex flex-col z-50">
+
+                                <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white flex justify-between group/item" onClick={() => { setShowNewProjectModal(true); closeAll(); }}>
+                                    <span>Novo Projeto...</span>
+                                    <span className="text-gray-500 text-[10px] group-hover:text-white/70">Ctrl+N</span>
+                                </button>
+
+                                <div className="h-[1px] bg-[#444] my-1"></div>
+
                                 <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white flex justify-between group/item" onClick={() => { ProjectManager.openProject(); closeAll(); }}>
                                     <span>Abrir Projeto...</span>
                                     <span className="text-gray-500 text-[10px] group-hover:text-white/70">Ctrl+O</span>
                                 </button>
 
+                                <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white flex justify-between group/item" onClick={() => { ProjectManager.saveProject(null, true); closeAll(); }}>
+                                    <span>Salvar Como...</span>
+                                    <span className="text-gray-500 text-[10px] group-hover:text-white/70">Ctrl+Shift+S</span>
+                                </button>
+
                                 <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white flex justify-between group/item" onClick={() => { ProjectManager.saveProject(); closeAll(); }}>
-                                    <span>Salvar Projeto...</span>
+                                    <span>Salvar</span>
                                     <span className="text-gray-500 text-[10px] group-hover:text-white/70">Ctrl+S</span>
                                 </button>
 
@@ -86,20 +164,28 @@ export default function MenuBar() {
 
                                 <div className="h-[1px] bg-[#444] my-1"></div>
 
-                                <div className="px-4 py-1 text-[10px] text-gray-500 font-bold uppercase tracking-wider">Recentes</div>
-                                {recentProjects.length === 0 && <div className="px-4 py-1 text-gray-500 italic">Nenhum</div>}
-                                {recentProjects.map((p, i) => {
-                                    const name = p.split(/[\\/]/).pop();
-                                    return (
-                                        <button key={i} className="text-left px-4 py-1.5 hover:bg-[#007acc] hover:text-white w-full truncate" title={p} onClick={() => { ProjectManager.loadFromFile(p); closeAll(); }}>
-                                            {name}
-                                        </button>
-                                    );
-                                })}
+                                <div className="relative group/submenu">
+                                    <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white flex justify-between w-full items-center">
+                                        <span>Projetos Recentes</span>
+                                        <span className="text-gray-500 text-[10px] group-hover/submenu:text-white">▶</span>
+                                    </button>
+
+                                    {/* SUBMENU */}
+                                    <div className="absolute left-full top-0 bg-[#2d2d2d] border border-[#111] shadow-xl min-w-[300px] py-1 flex flex-col hidden group-hover/submenu:flex">
+                                        {recentProjects.length === 0 && <div className="px-4 py-2 text-gray-500 italic text-xs">Nenhum projeto recente</div>}
+                                        {recentProjects.map((p, i) => {
+                                            return (
+                                                <button key={i} className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white w-full truncate text-xs font-mono" title={p.path} onClick={() => { ProjectManager.loadFromFile(p.path); closeAll(); }}>
+                                                    {p.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
 
                                 <div className="h-[1px] bg-[#444] my-1"></div>
 
-                                <button className="text-left px-4 py-2 hover:bg-red-600 hover:text-white" onClick={handleExit}>
+                                <button className="text-left px-4 py-2 hover:bg-red-600 hover:text-white" onClick={() => { ProjectManager.exitApp(); closeAll(); }}>
                                     Sair
                                 </button>
                             </div>
@@ -127,9 +213,21 @@ export default function MenuBar() {
                                 <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white" onClick={() => { window.dispatchEvent(new Event('open-projection-editor')); closeAll(); }}>
                                     Editar Projeção
                                 </button>
+                                <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white" onClick={() => { setShowOfflineBiblesModal(true); closeAll(); }}>
+                                    Gerenciar Bíblias Offline
+                                </button>
                             </div>
                         )}
                     </div>
+
+                    {/* CURRENT PROJECT INDICATOR (NEW STYLE) */}
+                    {currentProjectDisplay && (
+                        <div className="ml-4 flex items-center gap-2 bg-[#1a1a1a] px-3 py-1 rounded-md border border-[#333] shadow-sm">
+                            <span className="text-[11px] text-gray-400 font-mono select-none uppercase tracking-wide">
+                                {currentProjectDisplay}
+                            </span>
+                        </div>
+                    )}
 
                     {/* CANTO DIREITO: PROJEÇÃO LOUVOR + VERSÃO */}
                     <div className="ml-auto flex items-center gap-3 pr-3">
@@ -144,10 +242,6 @@ export default function MenuBar() {
                         <span className="opacity-40 text-[10px] font-mono select-none">v1.0.0</span>
                     </div>
 
-
-
-
-
                 </div>
             </div>
 
@@ -156,6 +250,12 @@ export default function MenuBar() {
 
             {/* MODAL LINKS */}
             {showLinksModal && <ProjectionLinksModal onClose={() => setShowLinksModal(false)} />}
+
+            {/* MODAL NOVO PROJETO */}
+            {showNewProjectModal && <NewProjectModal onClose={() => setShowNewProjectModal(false)} />}
+
+            {/* MODAL OFFLINE BIBLES */}
+            {showOfflineBiblesModal && <DownloadedBiblesModal onClose={() => setShowOfflineBiblesModal(false)} />}
         </>
     );
 }

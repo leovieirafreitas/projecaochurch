@@ -73,9 +73,40 @@ export function useProjectionSync(role: 'sender' | 'receiver', onStateChange?: (
             }
         };
 
+        // 4. POLLING LOCAL EM REDE (Para celulares/tablets na mesma rede Wi-Fi)
+        // Isso complementa o BroadcastChannel que só funciona na mesma máquina.
+        // O Rust serve /api/status lendo de um arquivo em RAM disk/AppData, mto rápido.
+        let lastTimestamp = 0;
+        let pollInterval: NodeJS.Timeout;
+
+        if (role === 'receiver') {
+            pollInterval = setInterval(async () => {
+                try {
+                    // Timeout curto para não travar
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 500);
+
+                    const res = await fetch('/api/status', { signal: controller.signal });
+                    clearTimeout(timeoutId);
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Verifica se tem dados e se é mais novo (ou se ainda não temos nada)
+                        if (data && data.timestamp && data.timestamp > lastTimestamp) {
+                            lastTimestamp = data.timestamp;
+                            if (onStateChange) onStateChange(data);
+                        }
+                    }
+                } catch (e) {
+                    // Ignora erros de rede no polling (comum se servidor cair ou mudar rota)
+                }
+            }, 300); // 300ms de intervalo (suave e rápido)
+        }
+
         return () => {
             supabase.removeChannel(channel);
             bc.close();
+            if (pollInterval) clearInterval(pollInterval);
         };
     }, [role]);
 

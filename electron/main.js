@@ -41,7 +41,74 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
         },
+    });
+
+    // --- IPC HANDLERS ---
+    const { ipcMain } = require('electron');
+    const APP_DIR = 'MediaChurch';
+    const PROJECTS_DIR = 'Projetos';
+
+    const getProjectsDir = () => {
+        const docDir = app.getPath('documents');
+        const projDir = path.join(docDir, APP_DIR, PROJECTS_DIR);
+        if (!fs.existsSync(projDir)) {
+            fs.mkdirSync(projDir, { recursive: true });
+        }
+        return projDir;
+    };
+
+    // Ensure directory exists on startup
+    getProjectsDir();
+
+    ipcMain.handle('ensure-projects-dir', () => {
+        return getProjectsDir();
+    });
+
+    ipcMain.handle('open-projects-folder', async () => {
+        const dir = getProjectsDir();
+        const { shell } = require('electron');
+        await shell.openPath(dir);
+    });
+
+    ipcMain.handle('save-project', async (event, data) => {
+        const dir = getProjectsDir();
+        const { filePath } = await dialog.showSaveDialog(mainWindow, {
+            title: 'Salvar Projeto Chama Church',
+            defaultPath: path.join(dir, 'culto.chama'),
+            filters: [{ name: 'Projeto Chama Church', extensions: ['chama'] }]
+        });
+
+        if (filePath) {
+            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+            return filePath;
+        }
+        return null;
+    });
+
+    ipcMain.handle('open-project', async () => {
+        const dir = getProjectsDir();
+        const { filePaths } = await dialog.showOpenDialog(mainWindow, {
+            title: 'Abrir Projeto',
+            defaultPath: dir,
+            properties: ['openFile'],
+            filters: [{ name: 'Projeto Chama Church', extensions: ['chama'] }]
+        });
+
+        if (filePaths && filePaths.length > 0) {
+            const content = fs.readFileSync(filePaths[0], 'utf-8');
+            return { path: filePaths[0], data: JSON.parse(content) };
+        }
+        return null;
+    });
+
+    ipcMain.handle('load-from-file', async (event, filePath) => {
+        if (fs.existsSync(filePath)) {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            return JSON.parse(content);
+        }
+        return null;
     });
 
     // In debug mode, open the file log to show the user

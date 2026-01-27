@@ -61,6 +61,9 @@ export default function BibleProjection({ verseText, reference, onClose, storage
 
     const [isLoaded, setIsLoaded] = useState(false);
 
+    // IMAGE LAYOUT
+    const [bgRect, setBgRect] = useState({ x: 50, y: 50, w: 100, h: 100 });
+
     // Ajusta o Scale para caber na tela do editor
     useEffect(() => {
         const handleResize = () => {
@@ -91,8 +94,9 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                 if (style.backgroundImage) setBackground(style.backgroundImage);
                 if (style.backgroundColor) setBackgroundColor(style.backgroundColor);
                 if (style.textBox) setTextBox(style.textBox);
+                if (style.bgRect) setBgRect(style.bgRect); // Carregar BgRect
                 if (style.refPos) setRefPos(style.refPos);
-                if (style.refContent) setRefContent(style.refContent); // Recuperar posição customizada se houver
+                if (style.refContent) setRefContent(style.refContent);
                 if (style.showRef !== undefined) setShowRef(style.showRef);
                 if (style.refFontSize) setRefFontSize(style.refFontSize);
                 if (style.refFontFamily) setRefFontFamily(style.refFontFamily);
@@ -121,9 +125,9 @@ export default function BibleProjection({ verseText, reference, onClose, storage
             textTransform: isUppercase ? 'uppercase' : 'none',
             isAdvancedLayout: true,
             textBox: textBox,
+            bgRect: bgRect, // Salvar bgRect
             refPos: refPos,
             refContent: refContent,
-
             refFontSize: refFontSize,
             refFontFamily: refFontFamily,
             refColor: refColor,
@@ -140,7 +144,7 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                 alert('⚠️ A imagem de fundo é muito grande para ser salva automaticamente!\nPor favor, escolha uma imagem menor ou com menos resolução para garantir que suas alterações não sejam perdidas.');
             }
         }
-    }, [fontSize, textAlign, verticalAlign, color, refColor, background, backgroundColor, textBox, refPos, refFontSize, refFontFamily, isBold, isUppercase, fontFamily, isLoaded, storageKey, showRef, refContent]);
+    }, [fontSize, textAlign, verticalAlign, color, refColor, background, backgroundColor, textBox, bgRect, refPos, refFontSize, refFontFamily, isBold, isUppercase, fontFamily, isLoaded, storageKey, showRef, refContent]);
 
     useEffect(() => { setRefContent(reference); }, [reference]);
 
@@ -160,12 +164,30 @@ export default function BibleProjection({ verseText, reference, onClose, storage
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Sempre usar FileReader para preview local
-        // O upload real para o Supabase acontecerá apenas ao salvar o Tema
+        // 1. Validação de Tamanho (Max 30MB)
+        const MAX_SIZE = 30 * 1024 * 1024; // 30MB
+        if (file.size > MAX_SIZE) {
+            alert(`⚠️ Arquivo muito grande! (${(file.size / 1024 / 1024).toFixed(2)}MB)\nO limite é 30MB para garantir boa performance.`);
+            return;
+        }
+
+        // 2. Validação de Formato
+        if (file.type !== 'image/png') {
+            if (!confirm("⚠️ A imagem não é PNG.\nPara melhor qualidade e transparência, recomendamos fortemente o uso de PNG com fundo transparente.\nDeseja continuar mesmo assim?")) {
+                return;
+            }
+        }
+
         const reader = new FileReader();
         reader.onload = (ev) => {
             if (ev.target?.result) {
-                setBackground(ev.target.result as string);
+                const img = new Image();
+                img.onload = () => {
+                    // Validação de Proporção (Opcional, apenas resetamos para full cover seguro)
+                    setBackground(ev.target?.result as string);
+                    setBgRect({ x: 50, y: 50, w: 100, h: 100 });
+                };
+                img.src = ev.target?.result as string;
             }
         };
         reader.readAsDataURL(file);
@@ -173,24 +195,31 @@ export default function BibleProjection({ verseText, reference, onClose, storage
 
     // DRAG AND DROP
     const handleMouseMove = (e: React.MouseEvent) => {
-        if (!dragMode.current || isEditing || isEditingRef) return;
+        const mode = dragMode.current as any;
+        if (!mode || isEditing || isEditingRef) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
         const rawX = ((e.clientX - rect.left) / rect.width) * 100;
         const rawY = ((e.clientY - rect.top) / rect.height) * 100;
 
-        const SNAP_TOLERANCE = 2;
+        const SNAP_TOLERANCE = 1;
         const x = Math.abs(rawX - 50) < SNAP_TOLERANCE ? 50 : rawX;
         const y = Math.abs(rawY - 50) < SNAP_TOLERANCE ? 50 : rawY;
 
-        if (dragMode.current === 'text') {
+        if (mode === 'text') {
             setTextBox(prev => ({ ...prev, x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) }));
-        } else if (dragMode.current === 'ref') {
+        } else if (mode === 'ref') {
             setRefPos({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
-        } else if (dragMode.current === 'resizeText') {
+        } else if (mode === 'resizeText') {
             const newW = Math.abs(rawX - textBox.x) * 2;
             const newH = Math.abs(rawY - textBox.y) * 2;
-            setTextBox(prev => ({ ...prev, w: Math.max(10, newW), h: Math.max(10, newH) }));
+            setTextBox(prev => ({ ...prev, w: Math.max(5, newW), h: Math.max(5, newH) }));
+        } else if (mode === 'bg') {
+            setBgRect(prev => ({ ...prev, x: x, y: y }));
+        } else if (mode === 'resizeBg') {
+            const newW = Math.abs(rawX - bgRect.x) * 2;
+            const newH = Math.abs(rawY - bgRect.y) * 2;
+            setBgRect(prev => ({ ...prev, w: Math.max(5, newW), h: Math.max(5, newH) }));
         }
     };
 
@@ -307,10 +336,10 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                         <span className="text-xs font-semibold">Temas</span>
                     </button>
 
-                    <label className="flex items-center gap-2 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-200 px-3 py-1.5 rounded cursor-pointer transition border border-[#444]" title="Carregar Imagem de Fundo">
+                    <label className="flex items-center gap-2 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-200 px-3 py-1.5 rounded cursor-pointer transition border border-[#444]" title="Carregar Imagem (PNG Transparente, 16:9, Max 30MB)">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                         <span className="text-xs font-semibold">Imagem</span>
-                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                        <input type="file" className="hidden" accept="image/png,image/*" onChange={handleImageUpload} />
                     </label>
 
                     {/* Quick Colors (Mantido conforme pedido) */}
@@ -476,7 +505,37 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                     }}
                     onMouseMove={handleMouseMove}
                 >
-                    {background && <img src={background} alt="Background" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />}
+                    {background && (
+                        <div
+                            className="absolute group/bg z-10"
+                            style={{
+                                left: `${bgRect.x}%`,
+                                top: `${bgRect.y}%`,
+                                width: `${bgRect.w}%`,
+                                height: `${bgRect.h}%`,
+                                transform: 'translate(-50%, -50%)',
+                                cursor: 'move'
+                            }}
+                            onMouseDown={(e) => {
+                                // Only drag bg if not clicking created controls, handled by propagation stop
+                                dragMode.current = 'bg' as any;
+                                // e.stopPropagation(); // Permitir bubbling se necessario? Nao, queremos arrastar o BG especificamente.
+                            }}
+                        >
+                            <img src={background} alt="Background" className="w-full h-full object-contain pointer-events-none select-none" />
+
+                            {/* Resize Handle for Background */}
+                            <div className="absolute bottom-0 right-0 w-6 h-6 bg-yellow-500/50 rounded-full cursor-se-resize opacity-0 group-hover/bg:opacity-100 border border-white z-20 pointer-events-auto transition-opacity"
+                                onMouseDown={(e) => {
+                                    dragMode.current = 'resizeBg' as any;
+                                    e.stopPropagation();
+                                }}
+                            ></div>
+
+                            {/* Visual Border on Hover to indicate editability */}
+                            <div className="absolute inset-0 border-2 border-transparent group-hover/bg:border-yellow-500/30 pointer-events-none transition-colors"></div>
+                        </div>
+                    )}
 
                     {/* Guias */}
                     {showGuides && (

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { YouVersionClient } from '../lib/youversion-client';
+import { LocalBibleManager } from '../lib/local-bible-manager';
 import { splitTextIdeally } from '../lib/text-utils';
 import Head from 'next/head';
 import BibleProjection from './BibleProjection';
@@ -95,6 +96,15 @@ export default function BibleSearch() {
     const [slideParts, setSlideParts] = useState<string[]>([]);
     const [currentPartIndex, setCurrentPartIndex] = useState(0);
 
+    // Download Offline
+    const [downloadStatus, setDownloadStatus] = useState({ downloading: false, progress: 0, message: '' });
+    const abortControllerRef = useRef<boolean>(false);
+    const [downloadedVersions, setDownloadedVersions] = useState<string[]>([]);
+
+    useEffect(() => {
+        LocalBibleManager.listDownloadedVersions().then(setDownloadedVersions);
+    }, []);
+
     const nextPart = () => { if (currentPartIndex < slideParts.length - 1) setCurrentPartIndex(prev => prev + 1); };
     const prevPart = () => { if (currentPartIndex > 0) setCurrentPartIndex(prev => prev - 1); };
 
@@ -119,6 +129,25 @@ export default function BibleSearch() {
         loadSettings();
         const interval = setInterval(loadSettings, 2000); // Polling para atualizar live
         return () => clearInterval(interval);
+    }, []);
+
+    // REAGIR AO CARREGAMENTO DE PROJETO (SEM RELOAD)
+    useEffect(() => {
+        const handleProjectLoaded = () => {
+            console.log('[BibleSearch] Projeto carregado via evento.');
+            // 1. Atualizar Settings
+            const savedSettings = localStorage.getItem('bible_settings');
+            if (savedSettings) {
+                try { setPreviewSettings(JSON.parse(savedSettings)); } catch (e) { }
+            }
+            // 2. Atualizar Versão
+            const savedVersion = localStorage.getItem('bible_version');
+            if (savedVersion) {
+                setCurrentVersion(savedVersion);
+            }
+        };
+        window.addEventListener('project-loaded', handleProjectLoaded);
+        return () => window.removeEventListener('project-loaded', handleProjectLoaded);
     }, []);
 
 
@@ -335,6 +364,36 @@ export default function BibleSearch() {
         setIsProjectionVisible(true);
     };
 
+    const handleDownloadVersion = async () => {
+        if (downloadStatus.downloading) {
+            if (confirm("Deseja cancelar o download em andamento?")) {
+                abortControllerRef.current = true;
+            }
+            return;
+        }
+
+        if (!confirm(`Deseja baixar a versão ${currentVersion} completa para uso offline?\n\nIsso pode levar alguns minutos dependendo da sua internet. O app continuará funcionando durante o download.`)) return;
+
+        setDownloadStatus({ downloading: true, progress: 0, message: 'Iniciando...' });
+        abortControllerRef.current = false;
+
+        try {
+            await YouVersionClient.downloadVersion(
+                currentVersion,
+                (msg, pct) => setDownloadStatus({ downloading: true, progress: pct, message: msg }),
+                () => abortControllerRef.current
+            );
+            if (!abortControllerRef.current) {
+                alert('Download concluído com sucesso! A versão agora está disponível offline.');
+                setDownloadedVersions(prev => [...prev, currentVersion]);
+            }
+        } catch (e) {
+            if (!abortControllerRef.current) alert('Erro ao baixar versão: Verifique sua conexão.');
+        } finally {
+            setDownloadStatus({ downloading: false, progress: 0, message: '' });
+        }
+    };
+
     const previewContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -385,24 +444,54 @@ export default function BibleSearch() {
                         <div className="font-bold text-base text-gray-800 truncate flex-1 min-w-[30%]">
                             {BIBLE_BOOKS_DATA[selectedBookId]?.name} {selectedChapterId.split('.')[1] || ''}
                         </div>
-                        <select
-                            value={currentVersion}
-                            onChange={(e) => { setCurrentVersion(e.target.value); localStorage.setItem('bible_version', e.target.value); }}
-                            className="bg-white border border-gray-300 text-gray-700 text-[11px] font-bold uppercase rounded py-1 px-2 outline-none cursor-pointer max-w-[70%] flex-shrink-0"
-                            title="Selecione a Versão"
-                        >
-                            {versions.map(v => {
-                                // Tenta obter o nome completo na ordem: Mapeamento Manual > Titulo Local > Nome > Abreviação
-                                const abbr = v.abbreviation.toUpperCase();
-                                const fullName = VERSION_FULL_NAMES[abbr] || v.local_title || v.name || abbr;
-                                return (
-                                    <option key={v.id} value={v.id} title={fullName}>
-                                        {fullName}
-                                    </option>
-                                );
-                            })}
-                            {versions.length === 0 && <option>NVI</option>}
-                        </select>
+                        <div className="flex items-center gap-2 shrink-0 max-w-[70%]">
+                            <select
+                                value={currentVersion}
+                                onChange={(e) => { setCurrentVersion(e.target.value); localStorage.setItem('bible_version', e.target.value); }}
+                                className="bg-white border border-gray-300 text-gray-700 text-[11px] font-bold uppercase rounded py-1 px-2 outline-none cursor-pointer flex-1 min-w-0"
+                                title="Selecione a Versão"
+                            >
+                                {versions.map(v => {
+                                    // Tenta obter o nome completo na ordem: Mapeamento Manual > Titulo Local > Nome > Abreviação
+                                    const abbr = v.abbreviation.toUpperCase();
+                                    const fullName = VERSION_FULL_NAMES[abbr] || v.local_title || v.name || abbr;
+                                    const isDownloaded = downloadedVersions.includes(v.id);
+                                    return (
+                                        <option key={v.id} value={v.id} title={fullName}>
+                                            {isDownloaded ? `[✓] ${fullName}` : fullName}
+                                        </option>
+                                    );
+                                })}
+                                {versions.length === 0 && <option>NVI</option>}
+                            </select>
+
+                            <button
+                                onClick={handleDownloadVersion}
+                                className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition flex items-center gap-1 min-w-[80px] justify-center border font-mono ${downloadStatus.downloading
+                                    ? 'bg-red-600 text-white border-red-700 animate-pulse'
+                                    : downloadedVersions.includes(currentVersion)
+                                        ? 'bg-green-600 text-white border-green-700 hover:bg-green-700 shadow-sm'
+                                        : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700 shadow-sm'
+                                    }`}
+                                title={
+                                    downloadStatus.downloading ? downloadStatus.message :
+                                        downloadedVersions.includes(currentVersion) ? "Esta versão já está baixada (Offline)" : "Baixar versão para Offline"
+                                }
+                            >
+                                {downloadStatus.downloading ? (
+                                    <><span>⏹ {Math.round(downloadStatus.progress)}%</span></>
+                                ) : downloadedVersions.includes(currentVersion) ? (
+                                    <>
+                                        <span>✓ Baixado</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                        <span>Baixar</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-0 scrollbar-thin scrollbar-thumb-gray-400">
@@ -584,23 +673,43 @@ export default function BibleSearch() {
                                                 width: '1024px',
                                                 height: '576px',
                                                 backgroundColor: previewSettings?.backgroundColor || '#000',
-                                                backgroundImage: previewSettings?.backgroundImage ? `url(${previewSettings.backgroundImage})` : 'none',
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center',
                                                 position: 'relative',
                                                 transform: 'translate(0px, 0px) scale(0.3)',
                                                 transformOrigin: 'center center',
                                                 flexShrink: 0,
                                                 boxShadow: '0 0 50px rgba(0,0,0,0.5)',
                                                 overflow: 'hidden',
-                                                transition: 'transform 0.05s linear' // Suavidade básica
+                                                transition: 'transform 0.05s linear'
                                             }}
                                         >
+                                            {/* BACKGROUND IMAGE LAYER */}
+                                            {previewSettings?.backgroundImage && (
+                                                <div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: `${(previewSettings as any)?.bgRect?.x || 50}%`,
+                                                        top: `${(previewSettings as any)?.bgRect?.y || 50}%`,
+                                                        width: `${(previewSettings as any)?.bgRect?.w || 100}%`,
+                                                        height: `${(previewSettings as any)?.bgRect?.h || 100}%`,
+                                                        transform: 'translate(-50%, -50%)',
+                                                        zIndex: 0,
+                                                        pointerEvents: 'none'
+                                                    }}
+                                                >
+                                                    <img
+                                                        src={previewSettings.backgroundImage}
+                                                        alt="bg"
+                                                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                                    />
+                                                </div>
+                                            )}
+
                                             {/* CONTEÚDO IDÊNTICO AO PROJECTION */}
                                             {/* Texto Versículo */}
                                             <div
                                                 style={{
                                                     position: 'absolute',
+                                                    zIndex: 10,
                                                     left: `${(previewSettings as any)?.textBox?.x || 50}%`,
                                                     top: `${(previewSettings as any)?.textBox?.y || 50}%`,
                                                     width: `${(previewSettings as any)?.textBox?.w || 80}%`,
@@ -630,6 +739,7 @@ export default function BibleSearch() {
                                             <div
                                                 style={{
                                                     position: 'absolute',
+                                                    zIndex: 10,
                                                     left: `${(previewSettings as any)?.refPos?.x || 50}%`,
                                                     top: `${(previewSettings as any)?.refPos?.y || 80}%`,
                                                     transform: 'translate(-50%, -50%)',

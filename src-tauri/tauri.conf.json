@@ -29,11 +29,17 @@
             "fs": {
                 "all": true,
                 "scope": [
-                    "$APP_DATA/*",
-                    "$RESOURCE/*"
+                    "$APP_DATA/**",
+                    "$RESOURCE/**",
+                    "$DOCUMENT/**",
+                    "$DOWNLOAD/**",
+                    "$DESKTOP/**"
                 ]
             },
             "path": {
+                "all": true
+            },
+            "dialog": {
                 "all": true
             }
         },

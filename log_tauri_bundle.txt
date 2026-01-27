@@ -2,6 +2,83 @@
 > biblia-online@0.1.0 tauri
 > tauri build
 
+     Running beforeBuildCommand `cross-env TAURI_BUILD=true npm run build`
+
+> biblia-online@0.1.0 build
+> next build
+
+▲ Next.js 16.1.4 (Turbopack)
+- Environments: .env.local
+
+  Skipping validation of types
+  Creating an optimized production build ...
+Turbopack build encountered 1 warnings:
+./components/ProjectionLinksModal.tsx:22:50
+Module not found: Can't resolve '@tauri-apps/api/tauri'
+[0m [90m 20 |[39m                     [90m// Tenta via import (padrão)[39m
+ [90m 21 |[39m                     [36mtry[39m {
+[31m[1m>[22m[39m[90m 22 |[39m                         [36mconst[39m { invoke } [33m=[39m [36mawait[39m [36mimport[39m([32m'@tauri-apps/api/tauri'[39m)[33m;[39m
+ [90m    |[39m                                                  [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 23 |[39m                         ip [33m=[39m [36mawait[39m invoke([32m'get_local_ip'[39m)[33m;[39m
+ [90m 24 |[39m                         console[33m.[39mlog([32m'IP via import Tauri:'[39m[33m,[39m ip)[33m;[39m
+ [90m 25 |[39m                     } [36mcatch[39m (errImport) {[0m
+
+
+
+Import traces:
+  Browser:
+    ./components/ProjectionLinksModal.tsx
+    ./components/MenuBar.tsx
+    ./components/BibleSearch.tsx
+    ./pages/index.tsx
+
+  SSR:
+    ./components/ProjectionLinksModal.tsx
+    ./components/MenuBar.tsx
+    ./components/BibleSearch.tsx
+    ./pages/index.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+✓ Compiled successfully in 2.0s
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/8) ...
+  Generating static pages using 15 workers (2/8) 
+  Generating static pages using 15 workers (4/8) 
+  Generating static pages using 15 workers (6/8) 
+✓ Generating static pages using 15 workers (8/8) in 465.0ms
+  Finalizing page optimization ...
+⚠ Statically exporting a Next.js application via `next export` disables API routes and middleware.
+This command is meant for static-only hosts, and is not necessary to make your application static.
+Pages in your application without server-side data dependencies will be automatically statically exported by `next build`, including pages powered by `getStaticProps`.
+Learn more: https://nextjs.org/docs/messages/api-routes-static-export
+  Exporting using 15 workers (0/8) ...
+  Exporting using 15 workers (2/8) 
+  Exporting using 15 workers (4/8) 
+  Exporting using 15 workers (6/8) 
+✓ Exporting using 15 workers (8/8) in 671.1ms
+
+Route (pages)
+┌ ○ /
+├   /_app
+├ ○ /404
+├ ƒ /api/local-ip
+├ ƒ /api/proxy
+├ ƒ /api/songs
+├ ƒ /api/status
+├ ƒ /api/status-music
+├ ƒ /api/upload
+├ ƒ /api/vagalume-proxy
+├ ○ /music
+├ ○ /projection
+├ ○ /projection-music
+├ ○ /simple
+└ ○ /test
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
    Compiling biblia-online v0.1.0 (C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri)
 warning: unused import: `tauri::Manager`
  --> src\main.rs:6:5
@@ -20,13 +97,13 @@ warning: struct `ProxyRequest` is never constructed
    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
 warning: struct `ProjectionState` is never constructed
-   --> src\main.rs:130:8
+   --> src\main.rs:141:8
     |
-130 | struct ProjectionState {
+141 | struct ProjectionState {
     |        ^^^^^^^^^^^^^^^
 
 warning: `biblia-online` (bin "biblia-online") generated 3 warnings
-    Finished `release` profile [optimized] target(s) in 15.31s
+    Finished `release` profile [optimized] target(s) in 19.47s
         Info Target: x64
      Running candle for "main.wxs"
      Running light to produce C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri\target\release\bundle\msi\biblia-online_0.1.0_x64_en-US.msi

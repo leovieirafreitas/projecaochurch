@@ -11,18 +11,34 @@ export default function ProjectionLinksModal({ onClose }: { onClose: () => void 
         const getIp = async () => {
             let ip = '';
 
-            // Tentar via Tauri (App Desktop)
+            console.log('Iniciando detecção de IP...');
+
+            // 1. Tentar via Tauri (App Desktop)
+            // Tenta usar window.__TAURI__ diretamente para evitar problemas de import dinâmico em build
             if (typeof window !== 'undefined' && (window as any).__TAURI__) {
                 try {
-                    const { invoke } = await import('@tauri-apps/api/tauri');
-                    ip = await invoke('get_local_ip');
+                    // Tenta via import (padrão)
+                    try {
+                        const { invoke } = await import('@tauri-apps/api/tauri');
+                        ip = await invoke('get_local_ip');
+                        console.log('IP via import Tauri:', ip);
+                    } catch (errImport) {
+                        // Fallback para window.__TAURI__ se o import falhar (comum em alguns bundles)
+                        console.warn('Import Tauri falhou, tentando global:', errImport);
+                        const tauri = (window as any).__TAURI__;
+                        if (tauri && tauri.invoke) {
+                            ip = await tauri.invoke('get_local_ip');
+                            console.log('IP via global Tauri:', ip);
+                        }
+                    }
                 } catch (e) {
-                    console.error('Erro Tauri IP:', e);
+                    console.error('Erro ao invocar get_local_ip:', e);
                 }
             }
 
-            // Tentar via API (Fallback Web/Dev) em qualquer caso se tauri falhar ou nao existir
-            if (!ip || ip === 'localhost') {
+            // 2. Tentar via API Next.js (apenas se estiver em ambiente web real, nao tauri://)
+            // Se estivermos no Tauri, o fetch para /api/local-ip pode falhar ou retornar localhost interno
+            if ((!ip || ip === 'localhost' || ip === 'tauri.localhost') && !((window as any).__TAURI__)) {
                 try {
                     const res = await fetch('/api/local-ip');
                     if (res.ok) {
@@ -32,19 +48,29 @@ export default function ProjectionLinksModal({ onClose }: { onClose: () => void 
                 } catch (e) { }
             }
 
-            // Se ainda assim for localhost ou vazio, tentar window.location se nao for localhost
-            if ((!ip || ip === 'localhost') && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-                ip = window.location.hostname;
+            // 3. Fallback: window.location.hostname
+            // Mas ignoramos 'localhost', '127.0.0.1' e 'tauri.localhost' se quisermos o IP externo
+            if (!ip || ip === 'localhost' || ip === '127.0.0.1' || ip === 'tauri.localhost') {
+                const hostname = window.location.hostname;
+                if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== 'tauri.localhost') {
+                    ip = hostname;
+                }
             }
+
+            // Validar resultado final
+            // Se ainda for inválido, definimos como null para mostrar msg de erro ou localhost
+            if (ip === 'tauri.localhost') ip = '';
 
             if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
                 setLocalIp(ip);
                 setBibleLink(`http://${ip}:3000/projection`);
                 setMusicLink(`http://${ip}:3000/projection-music`);
             } else {
-                setLocalIp('Não detectado');
-                setBibleLink('http://localhost:3000/projection');
-                setMusicLink('http://localhost:3000/projection-music');
+                setLocalIp('Não detectado (Verifique Wi-Fi)');
+                // Fallback seguro mostrando o que temos
+                const fallbackIp = ip || 'localhost';
+                setBibleLink(`http://${fallbackIp}:3000/projection`);
+                setMusicLink(`http://${fallbackIp}:3000/projection-music`);
             }
         };
 

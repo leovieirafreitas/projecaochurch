@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
 use serde::{Deserialize, Serialize};
-use actix_web::{get, App, HttpServer, Responder, HttpResponse};
+use actix_web::{get, web, App, HttpServer, Responder, HttpResponse};
 use actix_files as af;
 use local_ip_address::local_ip;
 
@@ -32,6 +32,17 @@ async fn get_local_ip_endpoint() -> impl Responder {
     match local_ip() {
         Ok(ip) => HttpResponse::Ok().json(serde_json::json!({ "ip": ip.to_string() })),
         Err(_) => HttpResponse::InternalServerError().finish(),
+    }
+}
+
+// Handler para ler o status do arquivo (Polling rápido)
+async fn get_status_json_endpoint(status_path: web::Data<PathBuf>) -> impl Responder {
+    if let Ok(content) = fs::read_to_string(status_path.get_ref()) {
+         HttpResponse::Ok()
+            .content_type("application/json")
+            .body(content)
+    } else {
+        HttpResponse::Ok().json(serde_json::json!({}))
     }
 }
 
@@ -142,9 +153,21 @@ fn get_status(state: tauri::State<AppState>) -> Result<serde_json::Value, String
 }
 
 #[tauri::command]
-fn update_status(state: tauri::State<AppState>, data: serde_json::Value) -> Result<(), String> {
+fn update_status(app_handle: tauri::AppHandle, state: tauri::State<AppState>, data: serde_json::Value) -> Result<(), String> {
+    // 1. Atualizar Memória (Rápido para Tauri)
     let mut val = state.projection.lock().map_err(|_| "Lock error".to_string())?;
-    *val = data;
+    *val = data.clone();
+    
+    // 2. Atualizar Arquivo (Rápido para Web/Mobile Polling)
+    if let Some(app_data_dir) = app_handle.path_resolver().app_data_dir() {
+         // Garantir que diretório existe
+         if !app_data_dir.exists() { let _ = fs::create_dir_all(&app_data_dir); }
+         
+         let status_path = app_data_dir.join("status.json");
+         // Write síncrono é ok aqui pois é pequeno (JSON de estado)
+         let _ = fs::write(status_path, data.to_string());
+    }
+
     Ok(())
 }
 
@@ -154,6 +177,47 @@ fn get_local_ip() -> Result<String, String> {
     local_ip_address::local_ip()
         .map(|ip| ip.to_string())
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn ensure_projects_dir() -> Result<String, String> {
+    if let Some(doc_dir) = tauri::api::path::document_dir() {
+        let projects_path = doc_dir.join("MediaChurch").join("Projetos");
+        if !projects_path.exists() {
+             fs::create_dir_all(&projects_path).map_err(|e| e.to_string())?;
+             return Ok(projects_path.to_string_lossy().to_string());
+        }
+        return Ok(projects_path.to_string_lossy().to_string());
+    }
+    Err("Could not resolve document directory".to_string())
+}
+
+#[tauri::command]
+fn open_projects_folder_native() -> Result<(), String> {
+    if let Some(doc_dir) = tauri::api::path::document_dir() {
+        let projects_path = doc_dir.join("MediaChurch").join("Projetos");
+        if projects_path.exists() {
+             #[cfg(target_os = "windows")]
+             {
+                 std::process::Command::new("explorer")
+                    .arg(&projects_path)
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
+             }
+             #[cfg(not(target_os = "windows"))]
+             {
+                 // Fallback or other OS implementation if needed
+                 // For now, minimal support since user is on Windows
+             }
+             return Ok(());
+        }
+    }
+    Err("Folder not found".to_string())
+}
+
+#[tauri::command]
+fn quit_app(app_handle: tauri::AppHandle) {
+    app_handle.exit(0);
 }
 
 fn main() {
@@ -174,6 +238,12 @@ fn main() {
 
             let static_path = resource_path.clone();
 
+            // Determinar caminho do status.json (AppData)
+            let app_data_dir = app.path_resolver().app_data_dir().expect("Failed to get AppData");
+            if !app_data_dir.exists() { let _ = fs::create_dir_all(&app_data_dir); }
+            let status_path = app_data_dir.join("status.json");
+            println!("Status JSON path: {:?}", status_path);
+
             // Iniciar servidor Web em thread separada
             std::thread::spawn(move || {
                 let sys = actix_web::rt::System::new();
@@ -183,8 +253,12 @@ fn main() {
                     let server_result = HttpServer::new(move || {
                         let projection_path = static_path.join("projection.html");
                         let static_files = static_path.clone(); // Clone for Files service
+                        let status_file_path = status_path.clone(); // Clone path for status service
+
                         App::new()
+                            .app_data(web::Data::new(status_file_path)) // Injeta o path
                             .service(get_local_ip_endpoint)
+                            .route("/api/status", web::get().to(get_status_json_endpoint)) // Novo endpoint
                             .route("/projection", actix_web::web::get().to(move || {
                                 let path = projection_path.clone();
                                 async move { af::NamedFile::open_async(&path).await }
@@ -203,7 +277,19 @@ fn main() {
                 });
             });
 
-            Ok(())
+            // --- CREATE PROJECTS FOLDER ON STARTUP ---
+            if let Some(doc_dir) = tauri::api::path::document_dir() {
+                let projects_path = doc_dir.join("MediaChurch").join("Projetos");
+                if !projects_path.exists() {
+                     if let Err(e) = fs::create_dir_all(&projects_path) {
+                         eprintln!("Failed to create projects directory: {}", e);
+                     } else {
+                         println!("Created projects directory at: {:?}", projects_path);
+                     }
+                }
+            }
+
+             Ok(())
         })
         .manage(AppState { projection: std::sync::Mutex::new(serde_json::json!({})) })
         .invoke_handler(tauri::generate_handler![
@@ -212,7 +298,10 @@ fn main() {
             save_song,
             get_status, 
             update_status,
-            get_local_ip
+            get_local_ip,
+            ensure_projects_dir,
+            open_projects_folder_native,
+            quit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
