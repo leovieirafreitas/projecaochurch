@@ -1,7 +1,7 @@
 {
     "build": {
         "beforeDevCommand": "npm run dev",
-        "beforeBuildCommand": "",
+        "beforeBuildCommand": "cross-env TAURI_BUILD=true npm run build",
         "devPath": "http://localhost:3000",
         "distDir": "../out",
         "withGlobalTauri": true
@@ -79,7 +79,7 @@
             {
                 "fullscreen": false,
                 "resizable": true,
-                "title": "Bíblia Online - Chama Church",
+                "title": "Projection Church",
                 "width": 1280,
                 "height": 720
             }

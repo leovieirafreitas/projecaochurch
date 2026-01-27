@@ -3,8 +3,8 @@ const nextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
-    // REMOVIDO 'output: export' para permitir API Routes (/api/proxy)
-    // Isso é necessário para a versão web funcionar com YouVersion API
+    // Gera output estático apenas para build do Tauri
+    output: process.env.TAURI_BUILD === 'true' ? 'export' : undefined,
     images: {
         unoptimized: true
     }

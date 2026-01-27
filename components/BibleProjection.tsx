@@ -42,6 +42,7 @@ export default function BibleProjection({ verseText, reference, onClose, storage
 
     // REFERÊNCIA
     const [refFontSize, setRefFontSize] = useState(20);
+    const [refFontFamily, setRefFontFamily] = useState('Inter, sans-serif'); // Nova fonte independente
     const [refColor, setRefColor] = useState('#ffffff'); // Cor independente da referência
     const [showRef, setShowRef] = useState(true); // Mostrar/Ocultar Referência
     const [refPos, setRefPos] = useState({ x: 50, y: 90 });
@@ -94,6 +95,7 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                 if (style.refContent) setRefContent(style.refContent); // Recuperar posição customizada se houver
                 if (style.showRef !== undefined) setShowRef(style.showRef);
                 if (style.refFontSize) setRefFontSize(style.refFontSize);
+                if (style.refFontFamily) setRefFontFamily(style.refFontFamily);
                 if (style.refColor) setRefColor(style.refColor);
                 if (style.fontWeight === 'bold') setIsBold(true);
                 if (style.textTransform === 'uppercase') setIsUppercase(true);
@@ -121,16 +123,24 @@ export default function BibleProjection({ verseText, reference, onClose, storage
             textBox: textBox,
             refPos: refPos,
             refContent: refContent,
+
             refFontSize: refFontSize,
+            refFontFamily: refFontFamily,
             refColor: refColor,
             showRef: showRef
         };
 
         // SALVAR NO LOCATION STORAGE
-        localStorage.setItem(storageKey, JSON.stringify(newSettings));
-        window.dispatchEvent(new Event('storage'));
-
-    }, [fontSize, textAlign, verticalAlign, color, refColor, background, backgroundColor, textBox, refPos, refFontSize, isBold, isUppercase, fontFamily, isLoaded, storageKey, showRef, refContent]);
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(newSettings));
+            window.dispatchEvent(new Event('storage'));
+        } catch (e: any) {
+            console.error('Erro ao salvar no LocalStorage:', e);
+            if (e.name === 'QuotaExceededError') {
+                alert('⚠️ A imagem de fundo é muito grande para ser salva automaticamente!\nPor favor, escolha uma imagem menor ou com menos resolução para garantir que suas alterações não sejam perdidas.');
+            }
+        }
+    }, [fontSize, textAlign, verticalAlign, color, refColor, background, backgroundColor, textBox, refPos, refFontSize, refFontFamily, isBold, isUppercase, fontFamily, isLoaded, storageKey, showRef, refContent]);
 
     useEffect(() => { setRefContent(reference); }, [reference]);
 
@@ -186,153 +196,42 @@ export default function BibleProjection({ verseText, reference, onClose, storage
 
     const stopDragging = () => { dragMode.current = null; };
 
-    // --- TEMAS (SUPABASE) ---
+    // --- TEMAS (read-only do Supabase) ---
     const [themes, setThemes] = useState<any[]>([]);
     const [showThemesModal, setShowThemesModal] = useState(false);
-    const [currentTheme, setCurrentTheme] = useState<{ id: string, name: string } | null>(null);
-    const [newThemeName, setNewThemeName] = useState('');
 
     const loadThemes = async () => {
+        // Apenas leitura dos temas globais
         const { data } = await supabase.from('themes').select('*').order('created_at', { ascending: false });
         if (data) setThemes(data);
     };
 
     useEffect(() => { if (showThemesModal) loadThemes(); }, [showThemesModal]);
 
-    const startNewTheme = () => {
-        setCurrentTheme(null);
-        setNewThemeName('');
-        // Reseta configs para um padrao limpo
-        setFontSize(30);
-        setColor('#ffffff');
-        setBackground(null);
-        setBackgroundColor('#000000');
-        alert('Modo Novo Tema Ativado. Configure e depois salve.');
-        setShowThemesModal(false);
-    };
-
-    const uploadBackground = async (base64Data: string) => {
-        try {
-            const res = await fetch(base64Data);
-            const blob = await res.blob();
-            // Garante extensão
-            const ext = blob.type.split('/')[1] || 'jpg';
-            const fileName = `${Date.now()}-bg.${ext}`;
-
-            // Upload com UPSERT falso
-            const { error: uploadError } = await supabase.storage
-                .from('backgrounds')
-                .upload(fileName, blob, {
-                    cacheControl: '3600',
-                    upsert: false
-                });
-
-            if (uploadError) {
-                console.error('Erro Upload:', uploadError);
-                throw uploadError;
-            }
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('backgrounds')
-                .getPublicUrl(fileName);
-
-            console.log('URL Publica Gerada:', publicUrl);
-            return publicUrl;
-        } catch (e) {
-            console.error('Catch Upload:', e);
-            throw e;
-        }
-    };
-
-    const saveTheme = async () => {
-        const themeName = newThemeName.trim() || currentTheme?.name;
-        if (!themeName) return alert('Digite um nome para o tema');
-
-        if (!background) {
-            if (!confirm('ATENÇÃO: Este tema está SEM IMAGEM DE FUNDO. Deseja continuar?')) return;
-        }
-
-        let finalBackground = background;
-
-        if (background && background.startsWith('data:')) {
-            try {
-                // Feedback visual simples
-                const confirmUpload = confirm('A imagem de fundo será enviada para a nuvem. Isso pode levar alguns segundos. Continuar?');
-                if (!confirmUpload) return;
-
-                finalBackground = await uploadBackground(background);
-                alert('Imagem enviada com sucesso! URL: ' + finalBackground);
-            } catch (e: any) {
-                return alert('FALHA AO ENVIAR IMAGEM: ' + (e.message || JSON.stringify(e)));
-            }
-        }
-
-        // Settings atuais
-        const currentSettings = {
-            fontSize, textAlign, verticalAlign, color,
-            backgroundImage: finalBackground, // URL da nuvem
-            backgroundColor,
-            fontFamily, textBox, refPos, refContent,
-            refFontSize, refColor, showRef,
-            fontWeight: isBold ? 'bold' : 'normal',
-            textTransform: isUppercase ? 'uppercase' : 'none',
-            isAdvancedLayout: true
-        };
-
-        console.log('Salvando Settings:', currentSettings);
-
-        let result;
-        if (currentTheme) {
-            // UPDATE
-            console.log('Atualizando tema:', currentTheme.id);
-            result = await supabase.from('themes').update({
-                name: themeName,
-                background_url: finalBackground,
-                settings: currentSettings
-            }).eq('id', currentTheme.id);
-        } else {
-            // INSERT
-            console.log('Criando novo tema');
-            result = await supabase.from('themes').insert([{
-                name: themeName,
-                type: storageKey.includes('music') ? 'music' : 'bible',
-                background_url: finalBackground,
-                settings: currentSettings
-            }])
-                .select();
-        }
-
-        if (result.error) alert('Erro ao salvar tema: ' + result.error.message);
-        else {
-            if (!currentTheme && result.data) {
-                setCurrentTheme({ id: result.data[0].id, name: themeName });
-            }
-            loadThemes();
-            alert('Tema salvo na nuvem com sucesso!');
-        }
-    };
-
     const applyTheme = (themeFn: any) => {
-        setCurrentTheme({ id: themeFn.id, name: themeFn.name });
-        setNewThemeName(themeFn.name);
-
         const s = themeFn.settings;
         if (!s) return;
 
-        // Aplicar
+        // Aplicar estilos do tema selecionado ao estado local
         if (s.fontSize) setFontSize(Number(s.fontSize));
         if (s.textAlign) setTextAlign(s.textAlign);
         if (s.verticalAlign) setVerticalAlign(s.verticalAlign);
         if (s.color) setColor(s.color);
 
-        // Prioriza coluna dedicada, fallback pro JSON antigo
+        // Prioriza URL da nuvem
         const bgUrl = themeFn.background_url || s.backgroundImage;
         setBackground(bgUrl);
 
         if (s.backgroundColor) setBackgroundColor(s.backgroundColor);
         if (s.textBox) setTextBox(s.textBox);
         if (s.refPos) setRefPos(s.refPos);
-        if (s.refContent) setRefContent(s.refContent);
+        if (s.refContent) setRefContent(s.refContent); // Reseta conteúdo ref se necessário? Não, mantemos a ref atual, só aplicamos estilo.
+        // Ops, se o tema salva posição da ref, aplicamos. Mas o conteudo da ref deve ser dinamico.
+        // O refContent aqui era pra ser customizado? Sim. Mas ao aplicar tema, o usuario geralmente quer manter o conteudo texto? 
+        // O refContent é o texto da referencia (ex: "Joao 3:16"). Isso vem da props `reference`.
+        // Mas se o usuario editou manualmente o texto da referencia, ao aplicar tema, mantemos ou resetamos? 
+        // Vamos manter o que o tema diz SOBRE POSIÇÃO E ESTILO. O conteúdo `reference` vem da prop.
+
         if (s.showRef !== undefined) setShowRef(s.showRef);
         if (s.refFontSize) setRefFontSize(s.refFontSize);
         if (s.refColor) setRefColor(s.refColor);
@@ -341,174 +240,222 @@ export default function BibleProjection({ verseText, reference, onClose, storage
         if (s.fontFamily) setFontFamily(s.fontFamily);
 
         setShowThemesModal(false);
-    };
-
-    const deleteTheme = async (id: string, e: any) => {
-        e.stopPropagation();
-        if (!confirm('Excluir este tema?')) return;
-        await supabase.from('themes').delete().eq('id', id);
-        loadThemes();
+        alert('Tema aplicado! Para tornar essa mudança permanente, vá em Arquivo > Salvar Projeto.');
     };
 
     return (
         <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center p-4 select-none" onMouseUp={stopDragging} onMouseLeave={stopDragging}>
 
-            {/* MODAL DE TEMAS */}
+            {/* MODAL DE TEMAS (APENAS LEITURA) */}
             {showThemesModal && (
                 <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center backdrop-blur-sm p-4">
-                    <div className="bg-[#1a1a1a] w-full max-w-md rounded-xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                    <div className="bg-[#1a1a1a] w-full max-w-4xl rounded-xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
 
-                        {/* Header com Botões */}
-                        <div className="p-4 bg-gray-900 border-b border-gray-800 flex flex-col gap-2">
-                            <div className="flex justify-between items-center">
-                                <h3 className="text-white font-bold">📂 Gerenciar Temas</h3>
-                                <button onClick={() => setShowThemesModal(false)} className="text-gray-400 hover:text-white">✕</button>
+                        <div className="p-4 bg-gray-900 border-b border-gray-800 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="text-white font-bold text-lg">Galeria de Temas</h3>
+                                <p className="text-gray-400 text-xs">Escolha um modelo base. As alterações são salvas no seu Projeto local.</p>
                             </div>
-                            <button onClick={startNewTheme} className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold py-2 rounded text-sm shadow-lg border border-green-500/50 transition transform active:scale-95">
-                                ➕ Criar Novo Tema em Branco
-                            </button>
+                            <button onClick={() => setShowThemesModal(false)} className="text-gray-400 hover:text-white text-2xl">X</button>
                         </div>
 
-                        {/* Editor de Nome e Ação */}
-                        <div className="p-4 bg-gray-800/50 border-b border-gray-800 flex flex-col gap-2">
-                            <span className="text-xs text-gray-400 uppercase font-bold">Tema Atual: {currentTheme ? currentTheme.name : 'Novo (Sem nome)'}</span>
-                            <div className="flex gap-2">
-                                <input
-                                    value={newThemeName}
-                                    onChange={e => setNewThemeName(e.target.value)}
-                                    className="flex-1 bg-black border border-gray-600 rounded px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
-                                    placeholder={currentTheme ? `Renomear ${currentTheme.name}...` : "Nome do novo tema..."}
-                                />
-                            </div>
-
-                            <div className="flex gap-2 justify-end">
-                                {currentTheme && (
-                                    <button
-                                        onClick={() => { setCurrentTheme(null); saveTheme(); }}
-                                        className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-bold border border-gray-600"
-                                        title="Cria um novo tema baseada nas configurações atuais"
+                        <div className="flex-1 overflow-y-auto p-4 bg-[#111]">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {themes.filter(t => t.type === (storageKey.includes('music') ? 'music' : 'bible') || !t.type).map(theme => (
+                                    <div
+                                        key={theme.id}
+                                        onClick={() => applyTheme(theme)}
+                                        className="group relative aspect-video bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 cursor-pointer overflow-hidden transition hover:shadow-xl hover:scale-[1.02]"
                                     >
-                                        📄 Salvar como Novo
-                                    </button>
-                                )}
-                                <button
-                                    onClick={saveTheme}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded font-bold text-sm shadow transition hover:shadow-blue-500/20 flex-1"
-                                >
-                                    {currentTheme ? '💾 Atualizar Existente' : '💾 Salvar Novo Tema'}
-                                </button>
-                            </div>
-                        </div>
+                                        {/* Preview do Fundo */}
+                                        <div className="absolute inset-0 bg-black">
+                                            {(theme.background_url || theme.settings?.backgroundImage) ? (
+                                                <img src={theme.background_url || theme.settings?.backgroundImage} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition" />
+                                            ) : (
+                                                <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900" style={{ backgroundColor: theme.settings?.backgroundColor }}></div>
+                                            )}
+                                        </div>
 
-                        {/* Lista */}
-                        <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-[#111]">
-                            {themes.filter(t => t.type === (storageKey.includes('music') ? 'music' : 'bible') || !t.type).map(theme => (
-                                <div key={theme.id} onClick={() => applyTheme(theme)} className={`p-2 rounded border cursor-pointer group flex gap-3 items-center transition ${currentTheme?.id === theme.id ? 'bg-blue-900/20 border-blue-500 shadow-inner' : 'bg-gray-800 border-gray-700 hover:border-gray-500'}`}>
+                                        {/* Preview do Texto (Simulado) */}
+                                        <div className="absolute inset-0 flex items-center justify-center p-2 text-center pointer-events-none">
+                                            {/* Vazio */}
+                                        </div>
 
-                                    {/* Miniatura */}
-                                    <div className="w-12 h-8 rounded bg-black border border-gray-600 overflow-hidden flex items-center justify-center flex-shrink-0">
-                                        {(theme.background_url || theme.settings?.backgroundImage) ? (
-                                            <img src={theme.background_url || theme.settings.backgroundImage} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <span className="text-[8px] text-gray-500">Sem Img</span>
-                                        )}
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-2 border-t border-white/10">
+                                            <p className="text-white text-xs font-bold truncate">{theme.name}</p>
+                                        </div>
                                     </div>
-
-                                    <span className={`text-sm font-medium flex-1 ${currentTheme?.id === theme.id ? 'text-blue-300' : 'text-gray-300 group-hover:text-white'}`}>
-                                        {theme.name}
-                                    </span>
-                                    <button onClick={(e) => deleteTheme(theme.id, e)} className="text-red-500 opacity-0 group-hover:opacity-100 hover:bg-red-900/30 p-1 rounded transition">🗑️</button>
-                                </div>
-                            ))}
-                            {themes.length === 0 && <div className="text-gray-500 text-center py-8 text-sm">Nenhum tema salvo. Crie o primeiro!</div>}
+                                ))}
+                            </div>
+                            {themes.length === 0 && <div className="text-center text-gray-500 mt-10">Carregando temas...</div>}
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* TOOLBAR */}
-            {/* TOOLBAR RESPONSIVA */}
-            <div className="w-full max-w-[95vw] bg-gray-900 rounded-lg p-2 gap-2 mb-4 border border-gray-800 shadow-xl shrink-0 flex flex-wrap items-center justify-center lg:justify-between overflow-x-auto">
+            {/* TOOLBAR PROFISSIONAL */}
+            <div className="w-full max-w-[95vw] bg-[#1e1e1e] rounded-lg p-2 gap-3 mb-4 border border-[#333] shadow-2xl shrink-0 flex flex-wrap items-center justify-between overflow-x-auto select-none">
 
-                {/* GRUPO 1: FUNDO E GUIAS */}
-                <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded border border-gray-800">
-                    <button onClick={() => setShowThemesModal(true)} className="bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white px-3 py-1 rounded text-xs font-bold border border-purple-500 shadow-lg" title="Gerenciar Temas">
-                        📂 Temas
+                {/* ESQUERDA: TEMAS E IMAGEM */}
+                <div className="flex items-center gap-2 mr-4">
+                    <button
+                        onClick={() => setShowThemesModal(true)}
+                        className="flex items-center gap-2 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-200 px-3 py-1.5 rounded transition border border-[#444]"
+                        title="Galeria de Temas"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        <span className="text-xs font-semibold">Temas</span>
                     </button>
-                    {currentTheme && (
-                        <button onClick={saveTheme} className="bg-green-700 hover:bg-green-600 text-white px-2 py-1 rounded text-xs font-bold border border-green-500 shadow active:scale-95 transition flex gap-1 items-center" title={`Salvar alterações em '${currentTheme.name}'`}>
-                            💾 Salvar
-                        </button>
-                    )}
-                    <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs font-bold flex items-center gap-1 active:scale-95 transition" title="Carregar Imagem de Fundo">
-                        🖼️ Img <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+
+                    <label className="flex items-center gap-2 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-gray-200 px-3 py-1.5 rounded cursor-pointer transition border border-[#444]" title="Carregar Imagem de Fundo">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        <span className="text-xs font-semibold">Imagem</span>
+                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                     </label>
-                    <div className="w-px h-4 bg-gray-700"></div>
-                    {/* Chroma */}
-                    <div className="flex items-center gap-1">
-                        <button onClick={() => setBackgroundColor('#00FF00')} className="w-4 h-4 rounded bg-[#00FF00] border border-gray-600 hover:scale-110 active:scale-95 transition" title="Fundo Verde"></button>
-                        <button onClick={() => setBackgroundColor('#0000FF')} className="w-4 h-4 rounded bg-[#0000FF] border border-gray-600 hover:scale-110 active:scale-95 transition" title="Fundo Azul"></button>
-                        <button onClick={() => setBackgroundColor('#000000')} className="w-4 h-4 rounded bg-black border border-gray-600 hover:scale-110 active:scale-95 transition" title="Fundo Preto"></button>
-                        <input type="color" value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} className="w-5 h-5 rounded border-none bg-transparent cursor-pointer" title="Cor Fundo Personalizada" />
+
+                    {/* Quick Colors (Mantido conforme pedido) */}
+                    <div className="flex items-center gap-1 ml-2 bg-[#111] p-1 rounded border border-[#333]">
+                        {['#00ff00', '#0000ff', '#000000', '#ffffff'].map(c => (
+                            <button
+                                key={c}
+                                onClick={() => setBackgroundColor(c)}
+                                className="w-4 h-4 rounded-sm border border-gray-600 hover:scale-110 transition"
+                                style={{ backgroundColor: c }}
+                                title={`Fundo ${c}`}
+                            />
+                        ))}
                     </div>
                 </div>
 
-                {/* GRUPO 2: TEXTO PRINCIPAL */}
-                <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded border border-gray-800">
-                    <span className="text-gray-500 text-[9px] font-bold uppercase">TXT</span>
-                    <input type="number" value={fontSize} onChange={e => setFontSize(Number(e.target.value))} className="w-10 bg-gray-800 border border-gray-700 text-white rounded px-0 py-1 text-xs text-center" title="Tamanho Fonte" />
+                {/* CENTRO: FORMATAÇÃO DE TEXTO */}
+                <div className="flex items-center gap-3 bg-[#111] px-3 py-1.5 rounded border border-[#333]">
 
-                    {/* V Align */}
-                    <div className="flex bg-gray-800 rounded border border-gray-700 mx-1">
-                        <button onClick={() => setVerticalAlign('flex-start')} title="Alinhar Topo" className={`px-2 py-1 text-xs hover:bg-gray-700 ${verticalAlign === 'flex-start' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>⬆</button>
-                        <button onClick={() => setVerticalAlign('center')} title="Alinhar Centro" className={`px-2 py-1 text-xs hover:bg-gray-700 ${verticalAlign === 'center' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>⬍</button>
-                        <button onClick={() => setVerticalAlign('flex-end')} title="Alinhar Base" className={`px-2 py-1 text-xs hover:bg-gray-700 ${verticalAlign === 'flex-end' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>⬇</button>
+                    {/* Fonte Tamanho */}
+                    <div className="flex items-center gap-1">
+                        <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider">TXT</span>
+                        <input
+                            type="number"
+                            value={fontSize}
+                            onChange={e => setFontSize(Number(e.target.value))}
+                            className="w-12 bg-[#2d2d2d] border border-[#444] text-white rounded px-1 py-1 text-xs text-center focus:border-blue-500 outline-none"
+                            title="Tamanho da Fonte"
+                        />
                     </div>
 
-                    {/* H Align */}
-                    <div className="flex bg-gray-800 rounded p-0.5 border border-gray-700">
-                        <button onClick={() => setTextAlign('left')} className={`p-1 w-6 rounded text-[10px] ${textAlign === 'left' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`} title="Alinhar Esquerda">Esq</button>
-                        <button onClick={() => setTextAlign('center')} className={`p-1 w-6 rounded text-[10px] ${textAlign === 'center' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`} title="Centralizar">Cen</button>
+                    <div className="w-px h-6 bg-[#333]"></div>
+
+                    {/* Alinhamento Vertical (Ícones SVG) */}
+                    <div className="flex bg-[#2d2d2d] rounded border border-[#444] overflow-hidden">
+                        <button onClick={() => setVerticalAlign('flex-start')} className={`p-1.5 hover:bg-[#3d3d3d] ${verticalAlign === 'flex-start' ? 'bg-[#007acc] text-white' : 'text-gray-400'}`} title="Topo">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4h14M12 4v16M8 16l4 4 4-4" /></svg>
+                        </button>
+                        <button onClick={() => setVerticalAlign('center')} className={`p-1.5 hover:bg-[#3d3d3d] ${verticalAlign === 'center' ? 'bg-[#007acc] text-white' : 'text-gray-400'}`} title="Centro">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16M12 4v16" /></svg>
+                        </button>
+                        <button onClick={() => setVerticalAlign('flex-end')} className={`p-1.5 hover:bg-[#3d3d3d] ${verticalAlign === 'flex-end' ? 'bg-[#007acc] text-white' : 'text-gray-400'}`} title="Base">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 20h14M12 4v16M8 8l4-4 4 4" /></svg>
+                        </button>
                     </div>
 
-                    {/* V Align */}
-                    <div className="flex bg-gray-800 rounded p-0.5 border border-gray-700">
-                        <button onClick={() => setVerticalAlign('flex-start')} className={`p-1 w-5 rounded text-[10px] ${verticalAlign === 'flex-start' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`} title="Topo">⬆</button>
-                        <button onClick={() => setVerticalAlign('center')} className={`p-1 w-5 rounded text-[10px] ${verticalAlign === 'center' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`} title="Meio">↕</button>
-                        <button onClick={() => setVerticalAlign('flex-end')} className={`p-1 w-5 rounded text-[10px] ${verticalAlign === 'flex-end' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`} title="Base">⬇</button>
-                        <label className="flex items-center gap-2 text-xs text-gray-400 ml-2">
-                            <input type="checkbox" checked={showRef} onChange={e => setShowRef(e.target.checked)} className="form-checkbox h-3 w-3 text-blue-600 rounded border-gray-300" />
-                            Título
-                        </label>
+                    {/* Alinhamento Horizontal */}
+                    <div className="flex bg-[#2d2d2d] rounded border border-[#444] overflow-hidden">
+                        <button onClick={() => setTextAlign('left')} className={`p-1.5 hover:bg-[#3d3d3d] ${textAlign === 'left' ? 'bg-[#007acc] text-white' : 'text-gray-400'}`} title="Esquerda">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h7" /></svg>
+                        </button>
+                        <button onClick={() => setTextAlign('center')} className={`p-1.5 hover:bg-[#3d3d3d] ${textAlign === 'center' ? 'bg-[#007acc] text-white' : 'text-gray-400'}`} title="Centro">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M7 12h10M9 18h6" /></svg>
+                        </button>
                     </div>
 
-                    <div className="w-px h-4 bg-gray-700"></div>
+                    <div className="w-px h-6 bg-[#333]"></div>
 
-                    <button onClick={() => setIsBold(!isBold)} className={`w-6 h-6 rounded text-xs font-bold border ${isBold ? 'bg-white text-black border-white' : 'bg-gray-800 text-gray-400 border-gray-700'}`} title="Negrito">B</button>
-                    <button onClick={() => setIsUppercase(!isUppercase)} className={`w-6 h-6 rounded text-[8px] font-bold border ${isUppercase ? 'bg-white text-black border-white' : 'bg-gray-800 text-gray-400 border-gray-700'}`} title="Maiúsculas">AA</button>
+                    {/* Estilo */}
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setIsBold(!isBold)}
+                            className={`w-7 h-7 flex items-center justify-center rounded border transition ${isBold ? 'bg-[#007acc] border-[#005c99] text-white' : 'bg-[#2d2d2d] border-[#444] text-gray-400 hover:text-white'}`}
+                            title="Negrito"
+                        >
+                            <span className="font-bold text-xs">B</span>
+                        </button>
 
-                    <select value={fontFamily} onChange={e => setFontFamily(e.target.value)} className="bg-gray-800 border border-gray-700 text-white text-[10px] rounded px-1 py-1 w-20 truncate cursor-pointer outline-none hover:bg-gray-700">
+                        <button
+                            onClick={() => setIsUppercase(!isUppercase)}
+                            className={`w-7 h-7 flex items-center justify-center rounded border transition ${isUppercase ? 'bg-[#007acc] border-[#005c99] text-white' : 'bg-[#2d2d2d] border-[#444] text-gray-400 hover:text-white'}`}
+                            title="Maiúsculas"
+                        >
+                            <span className="text-[10px] font-bold">AA</span>
+                        </button>
+                    </div>
+
+                    {/* Fonte Familia */}
+                    <select
+                        value={fontFamily}
+                        onChange={e => setFontFamily(e.target.value)}
+                        className="bg-[#2d2d2d] border border-[#444] text-white text-xs rounded px-2 py-1.5 w-24 outline-none hover:bg-[#3d3d3d] transition"
+                    >
                         {AVAILABLE_FONTS.map(font => <option key={font.value} value={font.value}>{font.name.split(' ')[0]}</option>)}
                     </select>
 
-                    <input type="color" value={color} onChange={e => setColor(e.target.value)} className="w-6 h-6 rounded cursor-pointer border-none bg-transparent" title="Cor do Texto" />
+                    {/* Cor Texto */}
+                    <div className="relative w-6 h-6 rounded overflow-hidden border border-[#555] cursor-pointer hover:border-white transition" title="Cor do Texto">
+                        <input type="color" value={color} onChange={e => setColor(e.target.value)} className="absolute -top-2 -left-2 w-10 h-10 cursor-pointer p-0 border-0 opacity-100" />
+                    </div>
                 </div>
 
-                {/* GRUPO 3: REFERÊNCIA */}
-                <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded border border-gray-800">
-                    <span className="text-gray-500 text-[9px] font-bold uppercase">REF</span>
-                    <input type="number" value={refFontSize} onChange={e => setRefFontSize(Number(e.target.value))} className="w-10 bg-gray-800 border border-gray-700 text-white rounded px-0 py-1 text-xs text-center" title="Tamanho Ref" />
-                    <input type="color" value={refColor} onChange={e => setRefColor(e.target.value)} className="w-6 h-6 rounded cursor-pointer border-none bg-transparent" title="Cor da Referência" />
-                </div>
+                {/* DIREITA: REF E AÇÕES */}
+                <div className="flex items-center gap-4">
 
-                {/* GUIAS E FECHAR */}
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setShowGuides(!showGuides)} className={`px-2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border transition ${showGuides ? 'bg-purple-900/50 text-purple-200 border-purple-500' : 'bg-gray-800 text-gray-500 border-gray-700'}`}>
-                        {showGuides ? 'Guias ON' : 'Guias OFF'}
-                    </button>
-                    <button onClick={onClose} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-900/50 px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1">
-                        ✕ <span className="hidden sm:inline">Fechar</span>
-                    </button>
+                    {/* Referência */}
+                    <div className="flex items-center gap-2 bg-[#111] px-2 py-1.5 rounded border border-[#333]">
+                        <span className="text-[#666] text-[10px] font-bold uppercase tracking-wider">REF</span>
+                        <input
+                            type="number"
+                            value={refFontSize}
+                            onChange={e => setRefFontSize(Number(e.target.value))}
+                            className="w-12 bg-[#2d2d2d] border border-[#444] text-white rounded px-1 py-1 text-xs text-center focus:border-blue-500 outline-none"
+                            title="Tamanho Referência"
+                        />
+                        <select
+                            value={refFontFamily}
+                            onChange={e => setRefFontFamily(e.target.value)}
+                            className="bg-[#2d2d2d] border border-[#444] text-white text-[10px] rounded px-1 py-1 w-20 outline-none hover:bg-[#3d3d3d] transition truncate"
+                            title="Fonte da Referência"
+                        >
+                            {AVAILABLE_FONTS.map(font => <option key={font.value} value={font.value}>{font.name.split(' ')[0]}</option>)}
+                        </select>
+                        <div className="relative w-5 h-5 rounded overflow-hidden border border-[#555] cursor-pointer hover:border-white transition" title="Cor da Referência">
+                            <input type="color" value={refColor} onChange={e => setRefColor(e.target.value)} className="absolute -top-2 -left-2 w-8 h-8 cursor-pointer p-0 border-0" />
+                        </div>
+                    </div>
+
+                    {/* Checkbox Título */}
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                        <div className={`w-4 h-4 border-2 rounded flex items-center justify-center transition ${showRef ? 'bg-blue-600 border-blue-600' : 'border-gray-500 group-hover:border-gray-300'}`}>
+                            {showRef && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                        </div>
+                        <span className={`text-xs font-semibold ${showRef ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>Título</span>
+                        <input type="checkbox" checked={showRef} onChange={e => setShowRef(e.target.checked)} className="hidden" />
+                    </label>
+
+                    <div className="w-px h-8 bg-[#333]"></div>
+
+                    {/* Botões Ação */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setShowGuides(!showGuides)}
+                            className={`px-3 py-1.5 rounded border text-xs font-bold transition flex items-center gap-1 ${showGuides ? 'bg-purple-900/30 text-purple-300 border-purple-800' : 'bg-[#2d2d2d] text-gray-400 border-[#444] hover:text-white'}`}
+                        >
+                            Guias
+                        </button>
+
+                        <button
+                            onClick={onClose}
+                            className="bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 px-3 py-1.5 rounded text-xs font-bold transition"
+                        >
+                            Fechar
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -556,7 +503,7 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                                     className="bg-blue-500/20 text-white text-center rounded px-1 py-0 outline-none font-bold shadow-lg backdrop-blur-sm pointer-events-auto"
                                     style={{
                                         fontSize: `${refFontSize}px`,
-                                        fontFamily: fontFamily,
+                                        fontFamily: refFontFamily,
                                         width: (refContent.length + 1) + 'ch',
                                         textTransform: isUppercase ? 'uppercase' : 'none'
                                     }}
@@ -567,7 +514,7 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                                     className="font-extrabold tracking-wider cursor-text pointer-events-auto"
                                     style={{
                                         fontSize: `${refFontSize}px`,
-                                        fontFamily: fontFamily,
+                                        fontFamily: refFontFamily,
                                         color: refColor,
                                         textShadow: refColor === '#ffffff' ? '0 2px 4px rgba(0,0,0,0.8)' : 'none',
                                         textTransform: isUppercase ? 'uppercase' : 'none',
