@@ -103,7 +103,7 @@ export default function BibleSearch() {
     const [downloadedVersions, setDownloadedVersions] = useState<string[]>([]);
 
     useEffect(() => {
-        LocalBibleManager.listDownloadedVersions().then(setDownloadedVersions);
+        LocalBibleManager.listDownloadedVersions().then(list => setDownloadedVersions(list.map(v => v.id)));
     }, []);
 
     const nextPart = () => { if (currentPartIndex < slideParts.length - 1) setCurrentPartIndex(prev => prev + 1); };
@@ -456,20 +456,26 @@ export default function BibleSearch() {
                                 className="bg-white border border-gray-300 text-gray-700 text-[11px] font-bold uppercase rounded py-1 px-2 outline-none cursor-pointer flex-1 min-w-0"
                                 title="Selecione a Versão"
                             >
-                                {versions.map(v => {
-                                    // Tenta obter o nome completo na ordem: Mapeamento Manual > Titulo Local > Nome > Abreviação
-                                    const abbr = v.abbreviation.toUpperCase();
-                                    const fullName = VERSION_FULL_NAMES[abbr] || v.local_title || v.name || abbr;
-                                    // FIX: Converter ID para string para garantir match com lista de arquivos (ex: 129 vs "129")
-                                    const idStr = String(v.id);
-                                    const isDownloaded = downloadedVersions.includes(idStr);
-                                    return (
-                                        <option key={v.id} value={idStr} title={fullName}>
-                                            {isDownloaded ? `[✓] ${fullName}` : fullName}
-                                        </option>
-                                    );
-                                })}
-                                {versions.length === 0 && <option>NVI</option>}
+                                <optgroup label="Minhas Bíblias (Offline & Online)">
+                                    {versions.map(v => {
+                                        let abbr = v.abbreviation.toUpperCase();
+                                        // Fix PORARA specially
+                                        if (v.id === 'PORARA') abbr = 'ARA (NT)';
+
+                                        let fullName = VERSION_FULL_NAMES[v.abbreviation.toUpperCase()] || VERSION_FULL_NAMES[v.id] || v.local_title || v.name || abbr;
+
+                                        // Special override for PORARA/PORARC if not in map
+                                        if (v.id === 'PORARA') fullName = 'Almeida Revista e Atualizada (Novo Testamento)';
+                                        if (v.id === 'PORARC') fullName = 'Almeida Revista e Corrigida (Novo Testamento)';
+
+                                        const isDownloaded = downloadedVersions.includes(String(v.id));
+
+                                        // Visual indicator in text (since <option> doesn't support icons well cross-browser)
+                                        const label = isDownloaded ? `${fullName} (BAIXADA)` : fullName;
+
+                                        return <option key={v.id} value={v.id}>{label}</option>;
+                                    })}
+                                </optgroup>
                             </select>
 
                             <button

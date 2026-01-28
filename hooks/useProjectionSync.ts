@@ -100,7 +100,7 @@ export function useProjectionSync(role: 'sender' | 'receiver', onStateChange?: (
                 } catch (e) {
                     // Ignora erros de rede no polling (comum se servidor cair ou mudar rota)
                 }
-            }, 300); // 300ms de intervalo (suave e rápido)
+            }, 150); // 150ms de intervalo (suave e rápido)
         }
 
         return () => {
@@ -112,12 +112,21 @@ export function useProjectionSync(role: 'sender' | 'receiver', onStateChange?: (
 
     // Função de Envio (Sender)
     const sendState = async (newState: ProjectionState) => {
-        // 1. Envia via Broadcast Local (Zero latencia)
+        // 1. Envia via Broadcast Local (Zero latencia para janelas do mesmo navegador)
         const bc = new BroadcastChannel('bible_channel');
         bc.postMessage(newState);
         bc.close();
 
-        // 2. Envia via Supabase Banco (Persistência + Remote Realtime)
+        // 2. Atualiza Cache Local do Servidor (API Next.js) - CRÍTICO PARA OBS/STREAMING
+        // Isso garante que quem polla /api/status receba da RAM instantaneamente sem ir no Supabase
+        fetch('/api/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newState),
+            keepalive: true // Garante envio mesmo se navegar
+        }).catch(err => console.error('[LocalAPI] Falha ao atualizar cache:', err));
+
+        // 3. Envia via Supabase Banco (Persistência + Remote Realtime)
         // Usamos upsert para garantir
         const { error } = await supabase
             .from(TABLE_NAME)

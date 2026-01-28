@@ -1,5 +1,5 @@
 {
-  "name": "biblia-online",
+  "name": "projection-church",
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.js",
@@ -41,7 +41,7 @@
   },
   "build": {
     "appId": "com.chamachurch.biblia",
-    "productName": "Bíblia Online",
+    "productName": "Projection Church",
     "files": [
       "out/**/*",
       "public/**/*",

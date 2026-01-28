@@ -117,8 +117,16 @@ export class YouVersionClient {
             lang: 'pt-br'
         }));
 
+        // Versões locais (Offline/Importadas)
+        const localVersions = await LocalBibleManager.getLocalVersions();
+        const localIds = new Set(localVersions.map((v: any) => String(v.id)));
+
+        // Filter out DBT versions that are already local
+        const uniqueDbtList = dbtList.filter(v => !localIds.has(String(v.id)));
+
         // Versões alternativas sempre disponíveis
         const alternativeVersions = [
+            ...localVersions, // Prioridade para locais
             {
                 id: 'ALMEIDA_EXTERNA',
                 abbreviation: 'ACF (Old)',
@@ -127,7 +135,7 @@ export class YouVersionClient {
                 description: 'Versão externa via Bible-API',
                 lang: 'pt'
             },
-            ...dbtList
+            ...uniqueDbtList
         ];
 
         try {
@@ -137,7 +145,12 @@ export class YouVersionClient {
 
             if (versions.length > 0) {
                 console.log('[YouVersion] API funcionando, retornando', versions.length, 'versões');
-                return [...alternativeVersions, ...versions];
+
+                // Deduplicate online versions against existing logic (local + dbt + almeida)
+                const existingIds = new Set(alternativeVersions.map(v => String(v.id)));
+                const uniqueOnlineVersions = versions.filter((v: any) => !existingIds.has(String(v.id)));
+
+                return [...alternativeVersions, ...uniqueOnlineVersions];
             } else {
                 console.warn('[YouVersion] API retornou vazio, usando apenas versões alternativas');
                 return alternativeVersions;
@@ -149,6 +162,13 @@ export class YouVersionClient {
     }
 
     static async getBooks(bibleId: string): Promise<any[]> {
+        // 1. Tentar Local/Offline primeiro
+        const localBooks = await LocalBibleManager.getVersionBooks(bibleId);
+        if (localBooks && localBooks.length > 0) {
+            console.log(`[YouVersion] Usando livros locais para ${bibleId}`);
+            return localBooks;
+        }
+
         if (bibleId === 'ALMEIDA_EXTERNA' || DBT_BIBLES[bibleId]) {
             // Retorna lista padrão de livros (usando NVI como base para estrutura)
             const data = await this.request(`/bibles/129/books`);
@@ -166,6 +186,12 @@ export class YouVersionClient {
     }
 
     static async getChapters(bibleId: string, bookId: string): Promise<any[]> {
+        // 1. Tentar Local/Offline primeiro
+        const localChapters = await LocalBibleManager.getVersionChapters(bibleId, bookId);
+        if (localChapters && localChapters.length > 0) {
+            return localChapters;
+        }
+
         // Mesma lógica: usa estrutura da NVI (129) para navegação
         const realId = (bibleId === 'ALMEIDA_EXTERNA' || DBT_BIBLES[bibleId]) ? '129' : bibleId;
         const data = await this.request(`/bibles/${realId}/books/${bookId}/chapters`);
