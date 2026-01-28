@@ -18,8 +18,9 @@ export class LocalBibleManager {
     private static cache: Map<string, any> = new Map();
 
     private static async getRoot(tauri: any) {
-        const appData = await tauri.path.appDataDir();
-        return await tauri.path.join(appData, BIBLES_DIR);
+        // MUDANÇA: Salvar em Meus Documentos para evitar erro de permissão e facilitar acesso
+        const docDir = await tauri.path.documentDir();
+        return await tauri.path.join(docDir, 'CHAMA_ONLINE_BIBLES');
     }
 
     /**
@@ -37,7 +38,12 @@ export class LocalBibleManager {
             const versionDir = await tauri.path.join(root, versionId);
             const bookDir = await tauri.path.join(versionDir, bookId);
 
-            // Garantir que diretório existe
+            // Garantir que diretório de VERSÃO existe primeiro
+            if (!(await tauri.fs.exists(versionDir))) {
+                await tauri.fs.createDir(versionDir, { recursive: true });
+            }
+
+            // Garantir que diretório do LIVRO existe
             if (!(await tauri.fs.exists(bookDir))) {
                 await tauri.fs.createDir(bookDir, { recursive: true });
             }
@@ -49,11 +55,19 @@ export class LocalBibleManager {
             this.cache.set(`${versionId}/${bookId}/${chapterId}`, content);
 
             return true;
-        } catch (e) {
+        } catch (e: any) {
             console.error('Erro ao salvar capitulo local:', e);
+            // Só alertar na primeira falha para não spammar
+            if (!this.hasAlertedError) {
+                alert(`Erro ao salvar arquivo: ${e}`);
+                this.hasAlertedError = true;
+            }
             return false;
         }
     }
+
+    // Add static property to prevent alert spam
+    private static hasAlertedError = false;
 
     /**
      * Tenta obter um capítulo do armazenamento local.

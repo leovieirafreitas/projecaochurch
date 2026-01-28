@@ -247,23 +247,29 @@ export class YouVersionClient {
                             const content = await this.getPassage(versionId, chapId);
 
                             if (content && (content.content || content.data)) {
-                                await LocalBibleManager.saveChapter(versionId, bookId, chapId, content);
+                                const saved = await LocalBibleManager.saveChapter(versionId, bookId, chapId, content);
+                                if (!saved) {
+                                    throw new Error(`Falha ao gravar arquivo no disco para ${chapId}. Verifique permissões.`);
+                                }
                             } else {
                                 console.warn(`[Download] Falha ao baixar ${chapId}`);
+                                // Optional: throw error/count failures?
                             }
 
                             // Delay mínimo para evitar bloqueio de API
                             await new Promise(r => setTimeout(r, 150));
                         }
                     }
-                } catch (eBook) {
+                } catch (eBook: any) {
                     console.error(`[Download] Erro ao baixar livro ${bookId}:`, eBook);
+                    // Se for erro de disco, repassar
+                    if (eBook.message && eBook.message.includes('disco')) throw eBook;
                 }
             }
             onProgress('Download Concluído!', 100);
-        } catch (e) {
+        } catch (e: any) {
             console.error('[Download] Erro fatal:', e);
-            onProgress('Erro no download.', 0);
+            onProgress(`Erro: ${e.message || 'Falha no download'}`, 0);
             throw e;
         }
     }

@@ -9,17 +9,18 @@ import { useProjectionSync } from '../hooks/useProjectionSync';
 import MenuBar from './MenuBar';
 
 // DADOS DE LIVROS E GRUPOS (MANTIDOS)
+// DADOS DE LIVROS E GRUPOS (LIVROS COLORIDOS IDENTICOS À REFERÊNCIA)
 const BOOK_GROUPS = [
-    { type: 'Pentateuco', color: 'bg-amber-700', books: ['GEN', 'EXO', 'LEV', 'NUM', 'DEU'] },
-    { type: 'Históricos', color: 'bg-orange-600', books: ['JOS', 'JDG', 'RUT', '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 'EZR', 'NEH', 'EST'] },
-    { type: 'Poéticos', color: 'bg-red-700', books: ['JOB', 'PSA', 'PRO', 'ECC', 'SNG'] },
-    { type: 'Profetas Maiores', color: 'bg-purple-700', books: ['ISA', 'JER', 'LAM', 'EZK', 'DAN'] },
-    { type: 'Profetas Menores', color: 'bg-purple-600', books: ['HOS', 'JOL', 'AMO', 'OBA', 'JON', 'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL'] },
-    { type: 'Evangelhos', color: 'bg-blue-700', books: ['MAT', 'MRK', 'LUK', 'JHN'] },
-    { type: 'Histórico NT', color: 'bg-cyan-600', books: ['ACT'] },
-    { type: 'Cartas Paulo', color: 'bg-green-700', books: ['ROM', '1CO', '2CO', 'GAL', 'EPH', 'PHP', 'COL', '1TH', '2TH', '1TI', '2TI', 'TIT', 'PHM'] },
-    { type: 'Cartas Gerais', color: 'bg-green-600', books: ['HEB', 'JAS', '1PE', '2PE', '1JN', '2JN', '3JN', 'JUD'] },
-    { type: 'Revelação', color: 'bg-yellow-600', books: ['REV'] },
+    { type: 'Pentateuco', color: 'bg-[#D35400]', books: ['GEN', 'EXO', 'LEV', 'NUM', 'DEU'] }, // Laranja Queimado
+    { type: 'Históricos', color: 'bg-[#E67E22]', books: ['JOS', 'JDG', 'RUT', '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 'EZR', 'NEH', 'EST'] }, // Laranja Vivo
+    { type: 'Poéticos', color: 'bg-[#C0392B]', books: ['JOB', 'PSA', 'PRO', 'ECC', 'SNG'] }, // Vermelho Escuro
+    { type: 'Profetas Maiores', color: 'bg-[#8E44AD]', books: ['ISA', 'JER', 'LAM', 'EZK', 'DAN'] }, // Roxo
+    { type: 'Profetas Menores', color: 'bg-[#9B59B6]', books: ['HOS', 'JOL', 'AMO', 'OBA', 'JON', 'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL'] }, // Lilás
+    { type: 'Evangelhos', color: 'bg-[#2980B9]', books: ['MAT', 'MRK', 'LUK', 'JHN'] }, // Azul Forte
+    { type: 'Histórico NT', color: 'bg-[#16A085]', books: ['ACT'] }, // Azul Petróleo (Teal)
+    { type: 'Cartas Paulo', color: 'bg-[#27AE60]', books: ['ROM', '1CO', '2CO', 'GAL', 'EPH', 'PHP', 'COL', '1TH', '2TH', '1TI', '2TI', 'TIT', 'PHM'] }, // Verde
+    { type: 'Cartas Gerais', color: 'bg-[#2ECC71]', books: ['HEB', 'JAS', '1PE', '2PE', '1JN', '2JN', '3JN', 'JUD'] }, // Verde Claro
+    { type: 'Revelação', color: 'bg-[#82E0AA] !text-gray-800', books: ['REV'] }, // Verde Limão
 ];
 
 const BIBLE_BOOKS_DATA: Record<string, { name: string, abbr: string }> = {
@@ -387,8 +388,12 @@ export default function BibleSearch() {
                 alert('Download concluído com sucesso! A versão agora está disponível offline.');
                 setDownloadedVersions(prev => [...prev, currentVersion]);
             }
-        } catch (e) {
-            if (!abortControllerRef.current) alert('Erro ao baixar versão: Verifique sua conexão.');
+        } catch (e: any) {
+            console.error('Download error:', e);
+            if (!abortControllerRef.current) {
+                // Se o erro tiver uma mensagem, mostra ela, se não, mostra a generica
+                alert(`Erro ao baixar versão: ${e.message || 'Verifique sua conexão ou tente novamente.'}`);
+            }
         } finally {
             setDownloadStatus({ downloading: false, progress: 0, message: '' });
         }
@@ -455,9 +460,11 @@ export default function BibleSearch() {
                                     // Tenta obter o nome completo na ordem: Mapeamento Manual > Titulo Local > Nome > Abreviação
                                     const abbr = v.abbreviation.toUpperCase();
                                     const fullName = VERSION_FULL_NAMES[abbr] || v.local_title || v.name || abbr;
-                                    const isDownloaded = downloadedVersions.includes(v.id);
+                                    // FIX: Converter ID para string para garantir match com lista de arquivos (ex: 129 vs "129")
+                                    const idStr = String(v.id);
+                                    const isDownloaded = downloadedVersions.includes(idStr);
                                     return (
-                                        <option key={v.id} value={v.id} title={fullName}>
+                                        <option key={v.id} value={idStr} title={fullName}>
                                             {isDownloaded ? `[✓] ${fullName}` : fullName}
                                         </option>
                                     );
@@ -516,22 +523,25 @@ export default function BibleSearch() {
                 <div className="flex-1 flex flex-col bg-[#222] min-w-[600px] overflow-hidden">
 
 
-                    {/* PAINEL LIVROS (Topo - 35%) */}
-                    <div className="h-[35%] border-b border-black bg-[#1a1a1a] p-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 shrink-0">
-                        <div className="grid grid-cols-12 gap-1 content-start">
+                    {/* PAINEL LIVROS (Topo - 40%) - LAYOUT ELÁSTICO (Preenchimento Total) */}
+                    <div className="h-[40%] bg-[#1a1a1a] p-1 overflow-hidden shrink-0 border-b border-[#333]">
+                        <div className="grid h-full gap-[1px]" style={{ gridTemplateColumns: 'repeat(11, 1fr)', gridAutoRows: 'minmax(0, 1fr)' }}>
                             {BOOK_GROUPS.map(group => {
                                 const isNtOnly = NT_ONLY_VERSIONS.includes(currentVersion);
-                                // Filtra livros se for NT Only
                                 const filteredBooks = group.books.filter(b => !isNtOnly || !OLD_TESTAMENT_BOOKS.has(b));
-
-                                if (filteredBooks.length === 0) return null; // Esconde grupo vazio
+                                if (filteredBooks.length === 0) return null;
 
                                 return filteredBooks.map(bookId => {
                                     const info = BIBLE_BOOKS_DATA[bookId] || { name: bookId, abbr: bookId };
                                     return (
-                                        <button key={bookId} onClick={() => selectBook(bookId)} className={`${group.color} text-white rounded-[2px] h-14 flex flex-col items-center justify-center hover:brightness-110 active:brightness-90 transition-all ${selectedBookId === bookId ? 'ring-2 ring-white z-10' : 'opacity-90'}`}>
-                                            <span className="text-base font-bold leading-none mb-0.5">{info.abbr}</span>
-                                            <span className="text-[9px] uppercase font-bold opacity-80 leading-none truncate w-full text-center px-0.5">{info.name}</span>
+                                        <button
+                                            key={bookId}
+                                            onClick={() => selectBook(bookId)}
+                                            className={`${group.color} text-white w-full h-full flex flex-col items-center justify-center hover:brightness-110 active:brightness-90 transition-all ${selectedBookId === bookId ? 'ring-2 ring-white z-10 shadow-lg relative' : 'opacity-95'}`}
+                                            title={info.name}
+                                        >
+                                            <span className="text-[13px] font-black leading-none mb-0.5 tracking-tighter">{info.abbr}</span>
+                                            <span className="text-[8px] uppercase font-bold opacity-90 leading-none truncate w-full text-center px-0.5 scale-95">{info.name}</span>
                                         </button>
                                     );
                                 });
@@ -539,29 +549,50 @@ export default function BibleSearch() {
                         </div>
                     </div>
 
-                    {/* PAINEL GRIDS (Meio - 35%) */}
-                    <div className="h-[35%] flex bg-[#222] border-b border-black shrink-0">
-                        {/* Capítulos */}
-                        <div className="w-[300px] border-r border-[#111] bg-[#222] flex flex-col shrink-0">
-                            <div className="bg-[#1a1a1a] px-2 py-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest shrink-0">Capítulos</div>
-                            <div className="flex-1 p-2 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600">
-                                <div className="grid grid-cols-5 gap-1">
+                    {/* PAINEL GRIDS (Meio - 30%) */}
+                    <div className="h-[30%] flex bg-[#222] border-b border-black shrink-0 text-white">
+                        {/* Capítulos - Grid 12 Colunas (Elástico) */}
+                        <div className="w-[50%] border-r border-[#111] bg-[#222] flex flex-col shrink-0">
+                            <div className="bg-[#1a1a1a] px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest shrink-0 border-b border-[#333] flex justify-between items-center h-7">
+                                <span>Capítulos</span>
+                                <span className="bg-gray-800 px-1 rounded text-gray-300">{chapterList.length}</span>
+                            </div>
+                            <div className="flex-1 p-1 overflow-hidden flex flex-col">
+                                <div className="grid h-full w-full gap-[1px]" style={{ gridTemplateColumns: 'repeat(12, 1fr)', gridAutoRows: 'minmax(0, 1fr)' }}>
                                     {chapterList.map((c, i) => {
                                         const chapNum = (c.human || c.number || (i + 1)).toString();
                                         const isSelected = selectedChapterId.endsWith(`.${chapNum}`) || selectedChapterId === chapNum;
-                                        return (<button key={i} onClick={() => selectChapter(i)} className={`h-12 text-lg font-bold rounded-sm flex items-center justify-center transition-colors ${isSelected ? 'bg-amber-600 text-white' : 'bg-[#333] text-gray-300 hover:bg-[#444]'}`}>{chapNum}</button>)
+                                        return (
+                                            <button
+                                                key={i}
+                                                onClick={() => selectChapter(i)}
+                                                className={`w-full h-full text-xs font-bold flex items-center justify-center transition-all ${isSelected ? 'bg-amber-600 text-white z-10 ring-1 ring-white relative' : 'bg-[#333] text-gray-400 hover:bg-[#444] hover:text-white'}`}
+                                            >
+                                                {chapNum}
+                                            </button>
+                                        )
                                     })}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Versículos */}
+                        {/* Versículos - Grid 10 Colunas (Elástico) */}
                         <div className="flex-1 bg-[#1e1e1e] flex flex-col min-w-0">
-                            <div className="bg-[#1a1a1a] px-2 py-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest shrink-0">Versículos</div>
-                            <div className="flex-1 p-2 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600">
-                                <div className="grid grid-cols-8 lg:grid-cols-10 gap-1 content-start">
+                            <div className="bg-[#1a1a1a] px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest shrink-0 border-b border-[#333] flex justify-between items-center h-7">
+                                <span>Versículos</span>
+                                <span className="bg-gray-800 px-1 rounded text-gray-300">{previewVerses.length}</span>
+                            </div>
+                            <div className="flex-1 p-1 overflow-hidden flex flex-col">
+                                <div className="grid h-full w-full gap-[1px] content-start" style={{ gridTemplateColumns: 'repeat(10, 1fr)', gridAutoRows: 'minmax(0, 1fr)' }}>
                                     {previewVerses.map(v => (
-                                        <button key={v.num} onClick={() => projectVerse(v)} className={`h-12 text-xl font-bold rounded-sm flex items-center justify-center transition-all ${activeSlide?.text === v.text ? 'bg-blue-600 text-white shadow-lg scale-105 z-10' : 'bg-[#333] text-gray-300 hover:bg-[#444]'}`}>{v.num}</button>
+                                        <button
+                                            key={v.num}
+                                            onClick={() => projectVerse(v)}
+                                            className={`w-full h-full text-xs font-bold flex items-center justify-center transition-all ${activeSlide?.text === v.text ? 'bg-blue-600 text-white shadow-lg z-10 ring-1 ring-white relative' : 'bg-[#333] text-gray-400 hover:bg-[#444] hover:text-white'}`}
+                                            title={v.text}
+                                        >
+                                            {v.num}
+                                        </button>
                                     ))}
                                 </div>
                             </div>
