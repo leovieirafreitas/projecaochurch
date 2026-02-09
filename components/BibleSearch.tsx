@@ -306,11 +306,12 @@ export default function BibleSearch() {
         selectedChapter: null as number | null,
         chapterCount: 0,
         verseCount: 0,
-        error: ''
+        error: '',
+        allMatches: [] as any[]
     });
 
     // Normalize text: remove accents, spaces, and convert to uppercase for comparison
-    const normalizeText = (text) => {
+    const normalizeText = (text: string) => {
         return text
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
@@ -389,7 +390,8 @@ export default function BibleSearch() {
                                 selectedChapter: null,
                                 chapterCount: chapters.length,
                                 verseCount: 0,
-                                error: ''
+                                error: '',
+                                allMatches: []
                             });
                         });
                     } else {
@@ -616,8 +618,10 @@ export default function BibleSearch() {
                             selectedChapter: null,
                             chapterCount: 0,
                             verseCount: 0,
-                            error: ''
+                            error: '',
+                            allMatches: []
                         });
+
 
                         // PARALLEL LOADING: Fire all requests at once (don't wait)
                         // 1. Load chapter list for grid (background)

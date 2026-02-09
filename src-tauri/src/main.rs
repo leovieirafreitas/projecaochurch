@@ -234,6 +234,16 @@ fn get_bible_source_paths() -> Vec<PathBuf> {
         }
     }
 
+    // 5. DEV/WEB FALLBACKS (Crucial for Localhost access)
+    // Tenta subir níveis para achar a pasta source
+    paths.push(PathBuf::from("../src-tauri/resources/bibles"));
+    paths.push(PathBuf::from("src-tauri/resources/bibles"));
+    
+    // Debug print paths
+    for p in &paths {
+        println!("Bible Search Path: {:?}", p);
+    }
+
     paths
 }
 
