@@ -156,37 +156,10 @@ export class YouVersionClient {
             ...uniqueDbtList
         ];
 
-        try {
-            // Tentar buscar da API YouVersion (somente se não estiver offline forçado)
-            const data = await this.request('/bibles', { 'language_ranges[]': 'por' });
-            const versions = data?.data || [];
-
-            if (versions.length > 0) {
-                console.log('[YouVersion] API funcionando, retornando', versions.length, 'versões');
-
-                // Deduplicate online versions against existing logic (local + dbt + almeida)
-                const existingIds = new Set(alternativeVersions.map(v => String(v.id)));
-                const uniqueOnlineVersions = versions.filter((v: any) => !existingIds.has(String(v.id)));
-
-                // INSERT CUSTOM SBTB VERSION HERE
-                const sbtbVersion = {
-                    id: 'ACF_SBTB',
-                    abbreviation: 'ACF (SBTB)',
-                    name: 'ALMEIDA CORRIGIDA FIEL (ACF- SBTB)',
-                    local_title: 'ALMEIDA CORRIGIDA FIEL (ACF- SBTB)',
-                    description: 'Fonte alternativa com 66 livros',
-                    lang: 'pt-br'
-                };
-
-                return [sbtbVersion, ...alternativeVersions, ...uniqueOnlineVersions];
-            } else {
-                console.warn('[YouVersion] API retornou vazio, usando apenas versões alternativas');
-                return alternativeVersions;
-            }
-        } catch (e) {
-            console.error('[YouVersion] API falhou, usando apenas versões alternativas:', e);
-            return alternativeVersions;
-        }
+        // REMOVIDO YOUVERSION API CONFORME SOLICITADO
+        // Retornar apenas Locais + Bible Brain (DBT)
+        console.log('[YouVersionClient] Retornando apenas versões Locais e Bible Brain (DBT).');
+        return alternativeVersions;
     }
 
     static async getBooks(bibleId: string): Promise<any[]> {
