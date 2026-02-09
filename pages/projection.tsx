@@ -42,7 +42,7 @@ const ProjectionContent = ({ state, currentText }: { state: any, currentText: st
                 el.style.fontSize = `${currentSize}px`;
             }
         }
-    }, [currentText, state.style, state.slideIndex]);
+    }, [currentText, state.style?.fontSize, state.style?.fontFamily, state.style?.fontWeight, state.style?.textBox, state.slideIndex]);
 
     const isAdvanced = state.style?.isAdvancedLayout || state.style?.textBox;
 
@@ -713,10 +713,12 @@ export default function ProjectionPage() {
     };
     const fontName = normalizeFont(fontFamily).replace(/"/g, '');
 
-    // SYNC PRIORITY: Se receber slides prontos do editor, usa eles (Pixel Perfect)
-    const slides = (state.slides && state.slides.length > 0)
-        ? state.slides
-        : splitTextGeometrically(
+    // PERFORMANCE FIX: Memoize heavy geometric splitting
+    // Only consistency check: if slides are provided by editor, use them.
+    const slides = React.useMemo(() => {
+        if (state.slides && state.slides.length > 0) return state.slides;
+
+        return splitTextGeometrically(
             state.verseText || '',
             wPx,
             hPx,
@@ -724,6 +726,8 @@ export default function ProjectionPage() {
             fontName,
             isBold ? 'bold' : 'normal'
         );
+    }, [state.slides, state.verseText, wPx, hPx, fontSize, fontName, isBold]);
+
     const currentText = slides[state.slideIndex] || slides[0] || "";
 
     // CORREÇÃO: Resolve URL local para Mobile (localhost -> IP)

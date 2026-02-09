@@ -324,7 +324,7 @@ export default function MenuBar() {
                             Projeção Louvor <span className="text-blue-500 font-normal opacity-80">(Beta)</span>
                         </button>
                         <div className="w-px h-4 bg-[#444]"></div>
-                        <span className="opacity-40 text-[10px] font-mono select-none">v0.3.48</span>
+                        <span className="opacity-40 text-[10px] font-mono select-none">v0.3.53</span>
                     </div>
 
                 </div>
