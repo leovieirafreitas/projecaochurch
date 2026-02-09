@@ -1128,35 +1128,52 @@ export default function BibleSearch() {
 
     const loadVersions = async () => {
         try {
-            // Debug logs removed for performance
-            const data = await YouVersionClient.getVersions();
-            // Debug logs removed for performance
-            setVersions(data.filter(v => v.abbreviation !== 'BLT' && String(v.id) !== '1967'));
+            // 1. FAST LOAD: Get Local Versions Only First
+            const localVersions = await LocalBibleManager.getLocalVersions();
+            // Filtrar duplicados e inválidos
+            const validLocals = localVersions.filter(v => v.abbreviation !== 'BLT' && String(v.id) !== '1967');
+
+            // Set Initial State (Immediate Feedback)
+            setVersions(validLocals); // Show what we have immediately
+
+            // Check if current version is available locally or default
             const saved = localStorage.getItem('bible_version');
-            if (saved && saved !== '1967') {
-                // Debug log removed for performance
+            if (saved && validLocals.some(v => v.id === saved)) {
                 setCurrentVersion(saved);
-            } else {
-                // Tentar NVI primeiro
-                const nvi = data.find(v => v.abbreviation === 'NVI');
-                if (nvi) {
-                    // Debug log removed for performance
-                    setCurrentVersion(nvi.id);
+            } else if (validLocals.length > 0) {
+                // Saturação temporária se não tiver a salva
+                // Mas não mudamos ainda para não pular se a online voltar rápido
+            }
+
+            // 2. BACKGROUND LOAD: Try to get complete list (Online)
+            // Do not await UI render, but let this run
+            YouVersionClient.getVersions().then(fullData => {
+                const validAll = fullData.filter(v => v.abbreviation !== 'BLT' && String(v.id) !== '1967');
+                setVersions(validAll);
+
+                // Re-check defaults with full list
+                if (saved && saved !== '1967') {
+                    setCurrentVersion(saved);
                 } else {
-                    // Fallback para ALMEIDA_EXTERNA se NVI não estiver disponível
-                    const almeida = data.find(v => v.id === 'ALMEIDA_EXTERNA');
-                    if (almeida) {
-                        // Debug log removed for performance
-                        setCurrentVersion('ALMEIDA_EXTERNA');
-                    } else if (data.length > 0) {
-                        // Debug log removed for performance
-                        setCurrentVersion(data[0].id);
+                    // Fallback logic
+                    const nvi = validAll.find(v => v.abbreviation === 'NVI');
+                    if (nvi) setCurrentVersion(nvi.id);
+                    else {
+                        const almeida = validAll.find(v => v.id === 'ALMEIDA_EXTERNA');
+                        if (almeida) setCurrentVersion('ALMEIDA_EXTERNA');
+                        else if (validAll.length > 0) setCurrentVersion(validAll[0].id);
                     }
                 }
-            }
+            }).catch(err => {
+                console.warn('[BibleSearch] Online versions failed, keeping local list.', err);
+                // If local list was empty, we need a fallback
+                if (validLocals.length === 0) {
+                    setCurrentVersion('ALMEIDA_EXTERNA');
+                }
+            });
+
         } catch (e) {
-            console.error('[ERROR] Failed to load versions:', e);
-            // Em caso de erro total, usar ALMEIDA_EXTERNA
+            console.error('[ERROR] Failed to load local versions:', e);
             setCurrentVersion('ALMEIDA_EXTERNA');
         }
     };

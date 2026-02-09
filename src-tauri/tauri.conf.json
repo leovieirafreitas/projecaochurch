@@ -8,7 +8,7 @@
     },
     "package": {
         "productName": "Projection Church",
-        "version": "0.3.48"
+        "version": "0.3.50"
     },
     "tauri": {
         "allowlist": {
