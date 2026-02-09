@@ -1,0 +1,86 @@
+    Checking projection-church v0.1.0 (C:\Users\FELIPE BARROSO\Documents\CHAMA_ONLINE\biblia-online\src-tauri)
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `actix`
+  --> src\main.rs:12:5
+   |
+12 | use actix::prelude::*;
+   |     ^^^^^ use of unresolved module or unlinked crate `actix`
+   |
+   = help: if you wanted to use a crate named `actix`, use `cargo add actix` to add it to your `Cargo.toml`
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `tokio`
+  --> src\main.rs:14:5
+   |
+14 | use tokio::sync::broadcast;
+   |     ^^^^^ use of unresolved module or unlinked crate `tokio`
+   |
+   = help: if you wanted to use a crate named `tokio`, use `cargo add tokio` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `tokio_stream::wrappers::BroadcastStream`
+  --> src\main.rs:16:5
+   |
+16 | use tokio_stream::wrappers::BroadcastStream;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `BroadcastStream` in `wrappers`
+   |
+note: found an item that was configured out
+  --> C:\Users\FELIPE BARROSO\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-stream-0.1.18\src\wrappers.rs:18:24
+   |
+16 | / cfg_sync! {
+17 | |     mod broadcast;
+18 | |     pub use broadcast::BroadcastStream;
+   | |                        ^^^^^^^^^^^^^^^
+...  |
+21 | |     pub use watch::WatchStream;
+22 | | }
+   | |_- the item is gated behind the `sync` feature
+
+error[E0405]: cannot find trait `Actor` in this scope
+  --> src\main.rs:54:6
+   |
+54 | impl Actor for ProjectionWs {
+   |      ^^^^^ not found in this scope
+
+error[E0405]: cannot find trait `StreamHandler` in this scope
+  --> src\main.rs:65:6
+   |
+65 | impl StreamHandler<Result<String, tokio_stream::wrappers::errors::BroadcastStreamRecvError>> for ProjectionWs {
+   |      ^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find type `BroadcastStreamRecvError` in module `tokio_stream::wrappers::errors`
+  --> src\main.rs:65:67
+   |
+65 | impl StreamHandler<Result<String, tokio_stream::wrappers::errors::BroadcastStreamRecvError>> for ProjectionWs {
+   |                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^ not found in `tokio_stream::wrappers::errors`
+   |
+note: found an item that was configured out
+  --> C:\Users\FELIPE BARROSO\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-stream-0.1.18\src\wrappers.rs:6:45
+   |
+ 5 | /     cfg_sync! {
+ 6 | |         pub use crate::wrappers::broadcast::BroadcastStreamRecvError;
+   | |                                             ^^^^^^^^^^^^^^^^^^^^^^^^
+ 7 | |     }
+   | |_____- the item is gated behind the `sync` feature
+
+error[E0425]: cannot find type `BroadcastStreamRecvError` in module `tokio_stream::wrappers::errors`
+  --> src\main.rs:66:78
+   |
+66 |     fn handle(&mut self, msg: Result<String, tokio_stream::wrappers::errors::BroadcastStreamRecvError>, ctx: &mut Self::Context) {
+   |                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^ not found in `tokio_stream::wrappers::errors`
+   |
+note: found an item that was configured out
+  --> C:\Users\FELIPE BARROSO\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-stream-0.1.18\src\wrappers.rs:6:45
+   |
+ 5 | /     cfg_sync! {
+ 6 | |         pub use crate::wrappers::broadcast::BroadcastStreamRecvError;
+   | |                                             ^^^^^^^^^^^^^^^^^^^^^^^^
+ 7 | |     }
+   | |_____- the item is gated behind the `sync` feature
+
+error[E0405]: cannot find trait `StreamHandler` in this scope
+  --> src\main.rs:73:6
+   |
+73 | impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ProjectionWs {
+   |      ^^^^^^^^^^^^^ not found in this scope
+
+Some errors have detailed explanations: E0405, E0425, E0432, E0433.
+For more information about an error, try `rustc --explain E0405`.
+error: could not compile `projection-church` (bin "projection-church") due to 8 previous errors

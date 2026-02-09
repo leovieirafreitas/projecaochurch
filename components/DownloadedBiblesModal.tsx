@@ -57,7 +57,7 @@ export default function DownloadedBiblesModal({ onClose }: Props) {
                         <div className="bg-blue-100 p-1.5 rounded text-blue-600">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                         </div>
-                        <h3 className="font-bold text-gray-800 text-lg">Gerenciar Bíblias Offline</h3>
+                        <h3 className="font-bold text-gray-800 text-lg">Gerenciar Bíblias Instaladas</h3>
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 transition">✕</button>
                 </div>
@@ -75,7 +75,7 @@ export default function DownloadedBiblesModal({ onClose }: Props) {
                                 <span className="text-[10px] text-gray-400">Role para ver mais ▼</span>
                             </div>
 
-                            {list.map(v => (
+                            {list.filter(v => !!v && !!v.id).map(v => (
                                 <div key={v.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100 group hover:border-blue-200 transition-colors">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-xs ${v.source === 'system' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>

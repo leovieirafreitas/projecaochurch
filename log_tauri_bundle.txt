@@ -1,63 +1,44 @@
 
-> biblia-online@0.1.0 tauri
+> projection-church@0.3.1 tauri
 > tauri build
 
      Running beforeBuildCommand `cross-env TAURI_BUILD=true npm run build`
 
-> biblia-online@0.1.0 build
+> projection-church@0.3.1 build
 > next build
+
+⚠ Specified "rewrites" will not automatically work with "output: export". See more info here: https://nextjs.org/docs/messages/export-no-custom-routes
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\FELIPE BARROSO\Documents\CHAMA_ONLINE\package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * C:\Users\FELIPE BARROSO\Documents\CHAMA_ONLINE\biblia-online\package-lock.json
 
 ▲ Next.js 16.1.4 (Turbopack)
 - Environments: .env.local
 
   Skipping validation of types
   Creating an optimized production build ...
-Turbopack build encountered 1 warnings:
-./components/ProjectionLinksModal.tsx:22:50
-Module not found: Can't resolve '@tauri-apps/api/tauri'
-[0m [90m 20 |[39m                     [90m// Tenta via import (padrão)[39m
- [90m 21 |[39m                     [36mtry[39m {
-[31m[1m>[22m[39m[90m 22 |[39m                         [36mconst[39m { invoke } [33m=[39m [36mawait[39m [36mimport[39m([32m'@tauri-apps/api/tauri'[39m)[33m;[39m
- [90m    |[39m                                                  [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
- [90m 23 |[39m                         ip [33m=[39m [36mawait[39m invoke([32m'get_local_ip'[39m)[33m;[39m
- [90m 24 |[39m                         console[33m.[39mlog([32m'IP via import Tauri:'[39m[33m,[39m ip)[33m;[39m
- [90m 25 |[39m                     } [36mcatch[39m (errImport) {[0m
-
-
-
-Import traces:
-  Browser:
-    ./components/ProjectionLinksModal.tsx
-    ./components/MenuBar.tsx
-    ./components/BibleSearch.tsx
-    ./pages/index.tsx
-
-  SSR:
-    ./components/ProjectionLinksModal.tsx
-    ./components/MenuBar.tsx
-    ./components/BibleSearch.tsx
-    ./pages/index.tsx
-
-https://nextjs.org/docs/messages/module-not-found
-
-
-✓ Compiled successfully in 2.0s
-  Collecting page data using 15 workers ...
-  Generating static pages using 15 workers (0/8) ...
-  Generating static pages using 15 workers (2/8) 
-  Generating static pages using 15 workers (4/8) 
-  Generating static pages using 15 workers (6/8) 
-✓ Generating static pages using 15 workers (8/8) in 465.0ms
+⚠ Specified "rewrites" will not automatically work with "output: export". See more info here: https://nextjs.org/docs/messages/export-no-custom-routes
+✓ Compiled successfully in 17.4s
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/9) ...
+  Generating static pages using 19 workers (2/9) 
+  Generating static pages using 19 workers (4/9) 
+  Generating static pages using 19 workers (6/9) 
+✓ Generating static pages using 19 workers (9/9) in 440.4ms
   Finalizing page optimization ...
+⚠ rewrites, redirects, and headers are not applied when exporting your application, detected (rewrites). See more info here: https://nextjs.org/docs/messages/export-no-custom-routes
 ⚠ Statically exporting a Next.js application via `next export` disables API routes and middleware.
 This command is meant for static-only hosts, and is not necessary to make your application static.
 Pages in your application without server-side data dependencies will be automatically statically exported by `next build`, including pages powered by `getStaticProps`.
 Learn more: https://nextjs.org/docs/messages/api-routes-static-export
-  Exporting using 15 workers (0/8) ...
-  Exporting using 15 workers (2/8) 
-  Exporting using 15 workers (4/8) 
-  Exporting using 15 workers (6/8) 
-✓ Exporting using 15 workers (8/8) in 671.1ms
+  Exporting using 19 workers (0/9) ...
+  Exporting using 19 workers (2/9) 
+  Exporting using 19 workers (4/9) 
+  Exporting using 19 workers (6/9) 
+✓ Exporting using 19 workers (9/9) in 435.7ms
 
 Route (pages)
 ┌ ○ /
@@ -67,49 +48,41 @@ Route (pages)
 ├ ƒ /api/proxy
 ├ ƒ /api/songs
 ├ ƒ /api/status
-├ ƒ /api/status-music
 ├ ƒ /api/upload
 ├ ƒ /api/vagalume-proxy
 ├ ○ /music
 ├ ○ /projection
 ├ ○ /projection-music
+├ ○ /remote
 ├ ○ /simple
 └ ○ /test
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
 
-   Compiling biblia-online v0.1.0 (C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri)
-warning: unused import: `tauri::Manager`
- --> src\main.rs:6:5
-  |
-6 | use tauri::Manager;
-  |     ^^^^^^^^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
-
+   Compiling projection-church v0.2.52 (C:\Users\FELIPE BARROSO\Documents\CHAMA_ONLINE\biblia-online\src-tauri)
 warning: struct `ProxyRequest` is never constructed
-  --> src\main.rs:23:8
+  --> src\main.rs:36:8
    |
-23 | struct ProxyRequest {
+36 | struct ProxyRequest {
    |        ^^^^^^^^^^^^
    |
    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
 warning: struct `ProjectionState` is never constructed
-   --> src\main.rs:141:8
+   --> src\main.rs:467:8
     |
-141 | struct ProjectionState {
+467 | struct ProjectionState {
     |        ^^^^^^^^^^^^^^^
 
-warning: `biblia-online` (bin "biblia-online") generated 3 warnings
-    Finished `release` profile [optimized] target(s) in 19.47s
+warning: `projection-church` (bin "projection-church") generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 56.25s
         Info Target: x64
      Running candle for "main.wxs"
-     Running light to produce C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri\target\release\bundle\msi\biblia-online_0.1.0_x64_en-US.msi
+     Running light to produce C:\Users\FELIPE BARROSO\Documents\CHAMA_ONLINE\biblia-online\src-tauri\target\release\bundle\msi\Projection Church_0.3.1_x64_en-US.msi
         Info Target: x64
-     Running makensis.exe to produce C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri\target\release\bundle\nsis\biblia-online_0.1.0_x64-setup.exe
+     Running makensis.exe to produce C:\Users\FELIPE BARROSO\Documents\CHAMA_ONLINE\biblia-online\src-tauri\target\release\bundle\nsis\Projection Church_0.3.1_x64-setup.exe
     Finished 2 bundles at:
-        C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri\target\release\bundle\msi\biblia-online_0.1.0_x64_en-US.msi
-        C:\Users\03738917250\Documents\ProjecaoChurch\src-tauri\target\release\bundle\nsis\biblia-online_0.1.0_x64-setup.exe
+        C:\Users\FELIPE BARROSO\Documents\CHAMA_ONLINE\biblia-online\src-tauri\target\release\bundle\msi\Projection Church_0.3.1_x64_en-US.msi
+        C:\Users\FELIPE BARROSO\Documents\CHAMA_ONLINE\biblia-online\src-tauri\target\release\bundle\nsis\Projection Church_0.3.1_x64-setup.exe
 

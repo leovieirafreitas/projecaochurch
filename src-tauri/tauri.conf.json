@@ -8,7 +8,7 @@
     },
     "package": {
         "productName": "Projection Church",
-        "version": "0.1.0"
+        "version": "0.3.48"
     },
     "tauri": {
         "allowlist": {
@@ -23,7 +23,11 @@
                 "scope": [
                     "https://api.youversion.com/*",
                     "https://*.dbt.io/*",
-                    "https://bible-api.com/*"
+                    "https://bible-api.com/*",
+                    "https://abibliasagrada.com.br/*",
+                    "http://localhost:4523/*",
+                    "http://localhost:4524/*",
+                    "http://localhost:3000/*"
                 ]
             },
             "fs": {

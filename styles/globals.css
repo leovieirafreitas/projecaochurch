@@ -68,10 +68,219 @@ body {
 }
 
 /* Fontes Customizadas */
+
+/* Wondra */
 @font-face {
   font-family: 'Wondra';
   src: url('/fonts/Wondra.woff') format('woff'),
     url('/fonts/Wondra.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
+}
+
+/* Bigstage */
+@font-face {
+  font-family: 'Bigstage';
+  src: url('/fonts/Bigstage.otf') format('opentype'),
+    url('/fonts/Bigstage.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* CSCalebMono - Regular */
+@font-face {
+  font-family: 'CSCalebMono';
+  src: url('/fonts/CSCalebMono-Regular.otf') format('opentype'),
+    url('/fonts/CSCalebMono-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* CSCalebMono - Italic */
+@font-face {
+  font-family: 'CSCalebMono';
+  src: url('/fonts/CSCalebMono-Italic.otf') format('opentype'),
+    url('/fonts/CSCalebMono-Italic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+}
+
+/* CSCalebMono - Reverse Italic */
+@font-face {
+  font-family: 'CSCalebMono';
+  src: url('/fonts/CSCalebMono-ReverseItalic.otf') format('opentype'),
+    url('/fonts/CSCalebMono-ReverseItalic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: oblique;
+}
+
+/* NewBlackTypeface - UltraLight */
+@font-face {
+  font-family: 'NewBlackTypeface';
+  src: url('/fonts/NewBlackTypeface-UltraLight.otf') format('opentype');
+  font-weight: 200;
+  font-style: normal;
+}
+
+/* NewBlackTypeface - Light */
+@font-face {
+  font-family: 'NewBlackTypeface';
+  src: url('/fonts/NewBlackTypeface-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+}
+
+/* NewBlackTypeface - Regular */
+@font-face {
+  font-family: 'NewBlackTypeface';
+  src: url('/fonts/NewBlackTypeface-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* NewBlackTypeface - Medium */
+@font-face {
+  font-family: 'NewBlackTypeface';
+  src: url('/fonts/NewBlackTypeface-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+}
+
+/* NewBlackTypeface - SemiBold */
+@font-face {
+  font-family: 'NewBlackTypeface';
+  src: url('/fonts/NewBlackTypeface-SemiBold.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+}
+
+/* NewBlackTypeface - Bold */
+@font-face {
+  font-family: 'NewBlackTypeface';
+  src: url('/fonts/NewBlackTypeface-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+/* NewBlackTypeface - ExtraBold */
+@font-face {
+  font-family: 'NewBlackTypeface';
+  src: url('/fonts/NewBlackTypeface-ExtraBold.otf') format('opentype');
+  font-weight: 800;
+  font-style: normal;
+}
+
+/* SunnySide */
+@font-face {
+  font-family: 'SunnySide';
+  src: url('/fonts/SunnySide-Regular.otf') format('opentype'),
+    url('/fonts/SunnySide-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* Animação para Toast */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+/* ANIMAÇÕES V77 (Projection Sync) */
+@keyframes fadeIn {
+  from {
+    opacity: 0
+  }
+
+  to {
+    opacity: 1
+  }
+}
+
+@keyframes slideLeft {
+  from {
+    opacity: 0;
+    transform: translate(calc(-50% - 50px), -50%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes slideRight {
+  from {
+    opacity: 0;
+    transform: translate(calc(-50% + 50px), -50%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 50px));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - 50px));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.anim-enter {
+  animation-duration: 0.6s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+.anim-delay {
+  animation-delay: 0.15s;
+}
+
+.anim-fade {
+  animation-name: fadeIn;
+}
+
+.anim-slide-left {
+  animation-name: slideLeft;
+}
+
+.anim-slide-right {
+  animation-name: slideRight;
+}
+
+.anim-slide-up {
+  animation-name: slideUp;
+}
+
+.anim-slide-down {
+  animation-name: slideDown;
 }

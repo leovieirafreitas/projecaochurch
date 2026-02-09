@@ -3,13 +3,26 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex; // Add Mutex
 use tauri::Manager;
 use serde::{Deserialize, Serialize};
 use actix_web::{get, web, App, HttpServer, Responder, HttpResponse};
 use actix_files as af;
 use local_ip_address::local_ip;
+use actix::prelude::*;
+use actix_web_actors::ws;
+use tokio::sync::broadcast;
+use std::time::{Duration, Instant};
+use tokio_stream::wrappers::BroadcastStream;
 
 // --- DATA STRUCTURES ---
+
+struct AppState {
+    status: Mutex<String>,
+    path: PathBuf,
+    projection: Mutex<serde_json::Value>,
+    tx: broadcast::Sender<String>,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Song {
@@ -25,6 +38,80 @@ struct ProxyRequest {
     params: Option<std::collections::HashMap<String, String>>,
 }
 
+
+
+// --- WEBSOCKET ACTOR ---
+
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(4);
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
+
+struct ProjectionWs {
+    hb: Instant,
+    rx: Option<broadcast::Receiver<String>>,
+    app_state: std::sync::Arc<AppState>,
+}
+
+impl Actor for ProjectionWs {
+    type Context = ws::WebsocketContext<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.hb(ctx);
+        if let Some(rx) = self.rx.take() {
+            ctx.add_stream(BroadcastStream::new(rx));
+        }
+    }
+}
+
+impl StreamHandler<Result<String, tokio_stream::wrappers::errors::BroadcastStreamRecvError>> for ProjectionWs {
+    fn handle(&mut self, msg: Result<String, tokio_stream::wrappers::errors::BroadcastStreamRecvError>, ctx: &mut Self::Context) {
+         if let Ok(json_str) = msg {
+             ctx.text(json_str);
+         }
+    }
+}
+
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ProjectionWs {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        match msg {
+            Ok(ws::Message::Ping(msg)) => { self.hb = Instant::now(); ctx.pong(&msg); }
+            Ok(ws::Message::Pong(_)) => { self.hb = Instant::now(); }
+            Ok(ws::Message::Text(text)) => {
+                if let Ok(_) = serde_json::from_str::<serde_json::Value>(&text) {
+                     {
+                         let mut status = self.app_state.status.lock().unwrap();
+                         *status = text.to_string();
+                     }
+                     let _ = self.app_state.tx.send(text.to_string());
+                }
+            }
+            Ok(ws::Message::Close(reason)) => { ctx.close(reason); ctx.stop(); }
+            _ => (),
+        }
+    }
+}
+
+impl ProjectionWs {
+    fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
+        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
+            if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
+                ctx.stop();
+                return;
+            }
+            ctx.ping(b"");
+        });
+    }
+}
+
+#[get("/ws")]
+async fn ws_route(req: actix_web::HttpRequest, stream: web::Payload, data: web::Data<AppState>) -> Result<HttpResponse, actix_web::Error> {
+    let rx = data.tx.subscribe();
+    ws::start(ProjectionWs { 
+        hb: Instant::now(), 
+        rx: Some(rx),
+        app_state: data.into_inner() 
+    }, &req, stream)
+}
+
 // --- WEB SERVER HANDLERS ---
 
 #[get("/api/local-ip")]
@@ -35,15 +122,254 @@ async fn get_local_ip_endpoint() -> impl Responder {
     }
 }
 
-// Handler para ler o status do arquivo (Polling rápido)
-async fn get_status_json_endpoint(status_path: web::Data<PathBuf>) -> impl Responder {
-    if let Ok(content) = fs::read_to_string(status_path.get_ref()) {
-         HttpResponse::Ok()
-            .content_type("application/json")
-            .body(content)
-    } else {
-        HttpResponse::Ok().json(serde_json::json!({}))
+// Handler para ler o status (Memória RAM - Ultra Rápido)
+async fn get_status_json_endpoint(data: web::Data<AppState>) -> impl Responder {
+    let status = data.status.lock().unwrap();
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(status.clone())
+}
+
+// Handler para escrever o status (Memória + Disco)
+async fn post_status_json_endpoint(data: web::Data<AppState>, body: web::Json<serde_json::Value>) -> impl Responder {
+    // 1. Update In-Memory (Instant)
+    if let Ok(json_str) = serde_json::to_string(&body) {
+        {
+            let mut status = data.status.lock().unwrap();
+            *status = json_str.clone();
+        }
+
+        // 2. Persist to Disk (Async/Fire-and-forget logic if possible, but here synch is safe because lock is released)
+        // We write to disk for persistence across restarts
+        let path = data.path.clone();
+        let json_clone = json_str.clone();
+        let _ = std::thread::spawn(move || {
+            let _ = fs::write(path, json_clone);
+        });
+
+        // 3. Broadcast to WebSockets
+        let _ = data.tx.send(json_str);
+
+        return HttpResponse::Ok().json(serde_json::json!({"status": "updated"}));
     }
+    HttpResponse::InternalServerError().finish()
+}
+
+// HTTP Handler para Proxy YouVersion (acessível via /api/proxy)
+#[get("/api/proxy")]
+async fn proxy_endpoint(req: actix_web::HttpRequest) -> impl Responder {
+    let client = reqwest::Client::new();
+    let base_url = "https://api.youversion.com/v1";
+    let app_key = "8CIUKFa2HDqazT1Vu4P9kpZPZVVtZMpvZiGBzt3GDggWf3q7";
+
+    // Parse Query String manually to avoid 422 on nested params
+    let query_str = req.query_string();
+    let params: std::collections::HashMap<String, String> = serde_urlencoded::from_str(query_str).unwrap_or_default();
+    
+    let endpoint = match params.get("endpoint") {
+        Some(e) => e,
+        None => return HttpResponse::BadRequest().json(serde_json::json!({"error": "Missing endpoint param"}))
+    };
+
+    let url = format!("{}{}", base_url, endpoint);
+    
+    let mut request_builder = client.get(&url)
+        .header("x-yvp-app-key", app_key)
+        .header("Accept", "application/json")
+        .header("User-Agent", "PostmanRuntime/7.26.8");
+
+    // Re-add all other params except 'endpoint'
+    // Note: This simplistic approach flattens nested arrays. 
+    // For a robust proxy, we should just forward the query string, but we need to strip 'endpoint'.
+    // A simple way is to pass the raw query string but replace 'endpoint=...&' with empty.
+    // However, recreating logic is safer:
+    
+    for (k, v) in &params {
+        if k != "endpoint" {
+            request_builder = request_builder.query(&[(k, v)]);
+        }
+    }
+
+    match request_builder.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                match resp.json::<serde_json::Value>().await {
+                    Ok(json) => HttpResponse::Ok().json(json),
+                    Err(_) => HttpResponse::InternalServerError().json(serde_json::json!({"error": "Invalid JSON from Upstream"}))
+                }
+            } else {
+                HttpResponse::build(resp.status()).json(serde_json::json!({"error": "Upstream Error"}))
+            }
+        },
+        Err(_) => HttpResponse::InternalServerError().json(serde_json::json!({"error": "Request Failed"}))
+    }
+}
+
+// --- OFFLINE BIBLE HANDLERS ---
+
+fn get_bible_source_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+
+    // 1. Documents (User Downloads - Writable)
+    if let Some(doc_dir) = tauri::api::path::document_dir() {
+        paths.push(doc_dir.join("CHAMA_ONLINE_BIBLES"));
+    }
+
+    // 2. Local AppData / Resources (Bundled/Pre-installed - Read-only)
+    // Hardcoded typical Windows paths based on user request and standard Tauri behavior
+    if let Some(local_app_data) = tauri::api::path::local_data_dir() {
+        paths.push(local_app_data.join("Projection Church").join("resources").join("bibles"));
+        paths.push(local_app_data.join("Projection Church").join("bibles"));
+    }
+
+    // 3. Current Directory (Dev/Portable)
+    paths.push(PathBuf::from("resources").join("bibles"));
+    paths.push(PathBuf::from("bibles"));
+
+    // 4. Executable Relative (Instalação MSI/EXE) -> CRÍTICO PARA O OFFLINE
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            paths.push(exe_dir.join("resources").join("bibles"));
+            paths.push(exe_dir.join("bibles"));
+        }
+    }
+
+    paths
+}
+
+#[get("/api/offline/versions")]
+async fn get_offline_versions_endpoint() -> impl Responder {
+    let mut versions = Vec::new();
+    let mut seen_ids = std::collections::HashSet::new();
+
+    for path in get_bible_source_paths() {
+        if path.exists() {
+            if let Ok(entries) = fs::read_dir(path) {
+                for entry in entries.flatten() {
+                    if let Ok(file_type) = entry.file_type() {
+                        if file_type.is_dir() {
+                            if let Ok(name) = entry.file_name().into_string() {
+                                if seen_ids.contains(&name) { continue; }
+
+                                // Tenta ler metadata se existir
+                                let meta_path = entry.path().join("metadata.json");
+                                let mut display_name = name.clone();
+                                if meta_path.exists() {
+                                    if let Ok(content) = fs::read_to_string(meta_path) {
+                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                            if let Some(n) = json.get("name").and_then(|v| v.as_str()) {
+                                                display_name = n.to_string();
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                versions.push(serde_json::json!({
+                                    "id": name,
+                                    "name": display_name,
+                                    "abbreviation": name, 
+                                    "local_title": display_name 
+                                }));
+                                seen_ids.insert(name);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    HttpResponse::Ok().json(versions)
+}
+
+#[get("/api/offline/books/{version}")]
+async fn get_offline_books_endpoint(path: web::Path<String>) -> impl Responder {
+    let version_id = path.into_inner();
+    
+    // Check all sources
+    for root in get_bible_source_paths() {
+        let version_path = root.join(&version_id);
+        if version_path.exists() {
+            let mut books = Vec::new();
+            if let Ok(entries) = fs::read_dir(version_path) {
+                for entry in entries.flatten() {
+                    if let Ok(file_type) = entry.file_type() {
+                        if file_type.is_dir() {
+                             if let Ok(name) = entry.file_name().into_string() {
+                                 books.push(name);
+                             }
+                        }
+                    }
+                }
+            }
+             return HttpResponse::Ok().json(books);
+        }
+    }
+    HttpResponse::NotFound().finish()
+}
+
+#[get("/api/offline/chapters/{version}/{book}")]
+async fn get_offline_chapters_list_endpoint(path: web::Path<(String, String)>) -> impl Responder {
+    let (version, book_id) = path.into_inner();
+    
+    for root in get_bible_source_paths() {
+        let book_path = root.join(&version).join(&book_id);
+        if book_path.exists() {
+             let mut chapters = Vec::new();
+             if let Ok(entries) = fs::read_dir(book_path) {
+                for entry in entries.flatten() {
+                    if let Ok(name) = entry.file_name().into_string() {
+                         if name.ends_with(".json") && !name.starts_with("metadata") {
+                             let parts: Vec<&str> = name.split('_').collect();
+                             if parts.len() >= 2 {
+                                 let num_part = parts[parts.len()-1].replace(".json", "");
+                                 if let Ok(num) = num_part.parse::<i32>() {
+                                      chapters.push(serde_json::json!({
+                                         "id": format!("{}.{}", book_id, num),
+                                         "number": num.to_string(),
+                                         "human": num.to_string()
+                                     }));
+                                 }
+                             }
+                         }
+                    }
+                }
+             }
+             chapters.sort_by(|a, b| {
+                 let na = a["number"].as_str().unwrap_or("0").parse::<i32>().unwrap_or(0);
+                 let nb = b["number"].as_str().unwrap_or("0").parse::<i32>().unwrap_or(0);
+                 na.cmp(&nb)
+             });
+             return HttpResponse::Ok().json(chapters);
+        }
+    }
+    HttpResponse::Ok().json(serde_json::json!([]))
+}
+
+#[get("/api/offline/chapter/{version}/{book}/{chapter}")]
+async fn get_offline_chapter_endpoint(path: web::Path<(String, String, String)>) -> impl Responder {
+    let (version, book, chapter) = path.into_inner();
+    
+    for root in get_bible_source_paths() {
+        // Try multiple formats for robust lookup
+        let filenames = vec![
+            format!("{}.json", chapter.replace('.', "_")), // GEN.1 -> GEN_1.json
+            format!("{}.json", chapter.split('.').last().unwrap_or(&chapter)) // GEN.1 -> 1.json
+        ];
+
+        for filename in filenames {
+            let file_path = root.join(&version).join(&book).join(&filename);
+            
+            if file_path.exists() {
+                if let Ok(content) = fs::read_to_string(file_path) {
+                     return HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body(content);
+                }
+            }
+        }
+    }
+    HttpResponse::NotFound().finish()
 }
 
 // --- TAURI COMMANDS ---
@@ -142,23 +468,29 @@ struct ProjectionState {
     data: serde_json::Value
 }
 
-struct AppState {
-    projection: std::sync::Mutex<serde_json::Value>,
-}
+// AppState is now defined at the top
 
 #[tauri::command]
-fn get_status(state: tauri::State<AppState>) -> Result<serde_json::Value, String> {
+fn get_status(state: tauri::State<std::sync::Arc<AppState>>) -> Result<serde_json::Value, String> {
     let val = state.projection.lock().map_err(|_| "Lock error".to_string())?;
     Ok(val.clone())
 }
 
 #[tauri::command]
-fn update_status(app_handle: tauri::AppHandle, state: tauri::State<AppState>, data: serde_json::Value) -> Result<(), String> {
-    // 1. Atualizar Memória (Rápido para Tauri)
-    let mut val = state.projection.lock().map_err(|_| "Lock error".to_string())?;
-    *val = data.clone();
+fn update_status(app_handle: tauri::AppHandle, state: tauri::State<std::sync::Arc<AppState>>, data: serde_json::Value) -> Result<(), String> {
+    // 1. Atualizar Memória (Tauri)
+    {
+        let mut val = state.projection.lock().map_err(|_| "Lock error".to_string())?;
+        *val = data.clone();
+    }
+
+    // 2. Sincronizar com State do Actix (mesmo objeto compartilhado)
+    {
+        let mut status_str = state.status.lock().map_err(|_| "Lock error".to_string())?;
+        *status_str = data.to_string();
+    }
     
-    // 2. Atualizar Arquivo (Rápido para Web/Mobile Polling)
+    // 3. Atualizar Arquivo
     if let Some(app_data_dir) = app_handle.path_resolver().app_data_dir() {
          // Garantir que diretório existe
          if !app_data_dir.exists() { let _ = fs::create_dir_all(&app_data_dir); }
@@ -220,8 +552,105 @@ fn quit_app(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
 }
 
+// NOVO COMANDO: Salvar Imagem (Upload) no Tauri
+#[tauri::command]
+async fn save_image_to_app_data(app_handle: tauri::AppHandle, filename: String, base64_data: String) -> Result<String, String> {
+    use base64::{Engine as _, engine::general_purpose};
+    
+    // 1. Determina pasta de destino (AppData/uploads)
+    let app_data_dir = app_handle.path_resolver().app_data_dir().ok_or("Falha ao abrir AppData")?;
+    let uploads_dir = app_data_dir.join("uploads");
+    if !uploads_dir.exists() {
+        fs::create_dir_all(&uploads_dir).map_err(|e| e.to_string())?;
+    }
+
+    // 2. Decode Base64 
+    // Remove header se existir (ex: data:image/png;base64,) para garantir decode correto
+    let b64_str = if let Some(idx) = base64_data.find(',') {
+        &base64_data[idx+1..]
+    } else {
+        &base64_data
+    };
+    let clean_b64 = b64_str.replace(|c: char| c.is_whitespace(), "");
+    
+    let bytes = general_purpose::STANDARD
+        .decode(&clean_b64)
+        .map_err(|e| format!("Erro Base64: {}", e))?;
+
+    // 3. Salva Arquivo com timestamp para evitar cache/colisão
+    let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
+    let safe_filename = format!("{}_{}", timestamp, filename.replace(" ", "_"));
+    let final_path = uploads_dir.join(&safe_filename);
+
+    fs::write(&final_path, bytes).map_err(|e| e.to_string())?;
+
+    // 4. Retorna URL para acesso via Servidor Actix (IMPORTANTE: Porta depende do ambiente)
+    let port = if cfg!(debug_assertions) { 4524 } else { 4523 };
+    // Mapeamos /uploads para a pasta AppData/uploads no servidor Actix (precisaremos adicionar essa rota lá)
+    let url = format!("http://localhost:{}/uploads/{}", port, safe_filename);
+
+    Ok(url)
+}
+
+// NOVO COMANDO: Listar Fontes do Sistema Windows
+#[tauri::command]
+fn get_system_fonts() -> Result<Vec<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::*;
+        use winreg::RegKey;
+        
+        let mut font_names = std::collections::HashSet::new();
+        
+        // V97: Lê de ambas as chaves (Sistema e Usuário)
+        let paths = vec![
+            (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
+            (HKEY_CURRENT_USER, "Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
+        ];
+
+        for (hkey, subkey) in paths {
+            let root = RegKey::predef(hkey);
+            if let Ok(fonts_key) = root.open_subkey(subkey) {
+                for (name, _) in fonts_key.enum_values().filter_map(|x| x.ok()) {
+                    // Extrair nome da fonte (remover sufixos como "(TrueType)", "(OpenType)", etc.)
+                    let clean_name = name
+                        .replace(" (TrueType)", "")
+                        .replace(" (OpenType)", "")
+                        .replace(" Bold", "")
+                        .replace(" Italic", "")
+                        .replace(" Bold Italic", "")
+                        .replace(" Regular", "")
+                        .trim()
+                        .to_string();
+                    
+                    if !clean_name.is_empty() {
+                        font_names.insert(clean_name);
+                    }
+                }
+            }
+        }
+        
+        let mut fonts: Vec<String> = font_names.into_iter().collect();
+        fonts.sort();
+        Ok(fonts)
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Fallback para outros sistemas (macOS, Linux)
+        Ok(vec![
+            "Arial".to_string(),
+            "Times New Roman".to_string(),
+            "Courier New".to_string(),
+            "Verdana".to_string(),
+            "Georgia".to_string(),
+        ])
+    }
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             // Resolver o caminho dos arquivos estáticos (resource)
             // Em dev, isso pode não funcionar bem se não copiarmos o 'out' manualmente, mas em bundle funciona.
@@ -241,38 +670,87 @@ fn main() {
             // Determinar caminho do status.json (AppData)
             let app_data_dir = app.path_resolver().app_data_dir().expect("Failed to get AppData");
             if !app_data_dir.exists() { let _ = fs::create_dir_all(&app_data_dir); }
+            
+            // GARANTIR PASTA UPLOADS NA INICIALIZAÇÃO (Evita 404 no Actix)
+            let uploads_path = app_data_dir.join("uploads");
+            if !uploads_path.exists() { let _ = fs::create_dir_all(&uploads_path); }
+            
             let status_path = app_data_dir.join("status.json");
             println!("Status JSON path: {:?}", status_path);
+
+            let status_content = fs::read_to_string(&status_path).unwrap_or_else(|_| "{}".to_string());
+            
+            // Channel for WebSocket Broadcast
+            let (tx, _rx) = broadcast::channel(100);
+
+            // Create Shared State (Arc) to be shared between Tauri and Actix
+            let shared_state = std::sync::Arc::new(AppState {
+                status: Mutex::new(status_content.clone()),
+                path: status_path.clone(),
+                projection: Mutex::new(serde_json::from_str(&status_content).unwrap_or_else(|_| serde_json::json!({}))),
+                tx,
+            });
+
+            let app_state_for_actix = shared_state.clone();
+            
+            // Register state in Tauri
+            app.manage(shared_state);
 
             // Iniciar servidor Web em thread separada
             std::thread::spawn(move || {
                 let sys = actix_web::rt::System::new();
                 sys.block_on(async move {
-                    println!("Starting Web Server on port 3000...");
+                    // Use port 3001 in Dev (Next.js is on 3000), Use 3000 in Prod (Standalone)
+                    let port = if cfg!(debug_assertions) { 4524 } else { 4523 };
+                    println!("Starting Web Server on port {}...", port);
+
                     // Tenta iniciar o servidor
                     let server_result = HttpServer::new(move || {
+                        let static_files = static_path.clone(); 
+                        
+                        // Prepare paths for clean URLs
+                        let remote_path = static_path.join("remote.html");
                         let projection_path = static_path.join("projection.html");
-                        let static_files = static_path.clone(); // Clone for Files service
-                        let status_file_path = status_path.clone(); // Clone path for status service
 
                         App::new()
-                            .app_data(web::Data::new(status_file_path)) // Injeta o path
+                            .wrap(actix_cors::Cors::permissive()) // Habilita CORS para todo mundo (Mobile/Web)
+                            .app_data(web::Data::from(app_state_for_actix.clone())) // Fix: Use Data::from to properly unwrap Arc
+                            .service(ws_route)
                             .service(get_local_ip_endpoint)
-                            .route("/api/status", web::get().to(get_status_json_endpoint)) // Novo endpoint
-                            .route("/projection", actix_web::web::get().to(move || {
-                                let path = projection_path.clone();
-                                async move { af::NamedFile::open_async(&path).await }
+                            .service(proxy_endpoint)
+                            .service(get_offline_versions_endpoint)
+                            .service(get_offline_books_endpoint)
+                            .service(get_offline_chapters_list_endpoint)
+                            .service(get_offline_chapter_endpoint)
+                            .service(
+                                web::resource("/api/status")
+                                    .route(web::get().to(get_status_json_endpoint))
+                                    .route(web::post().to(post_status_json_endpoint))
+                                    .route(web::head().to(|| async { HttpResponse::Ok().finish() })) // Support HEAD for connectivity checks
+                            )
+                            
+                            // Explicit Clean URL Routing
+                            .route("/remote", web::get().to(move || {
+                                af::NamedFile::open_async(remote_path.clone())
                             }))
-                            .service(af::Files::new("/", &static_files).index_file("index.html")) // Uses cloned path
+                            .route("/projection", web::get().to(move || {
+                                af::NamedFile::open_async(projection_path.clone())
+                            }))
+
+                            
+                            // SERVE UPLOADS (AppData/uploads)
+                            .service(af::Files::new("/uploads", app_data_dir.clone().join("uploads")))
+
+                            .service(af::Files::new("/", static_files).index_file("index.html"))
                     })
-                    .bind(("0.0.0.0", 3000));
+                    .bind(("0.0.0.0", port));
 
                     match server_result {
                         Ok(server) => {
-                            println!("Web Server running on port 3000");
+                            println!("Web Server running on port {}", port);
                             let _ = server.run().await;
                         },
-                        Err(e) => eprintln!("Failed to bind Web Server on port 3000: {}", e),
+                        Err(e) => eprintln!("Failed to bind Web Server on port {}: {}", port, e),
                     }
                 });
             });
@@ -291,7 +769,7 @@ fn main() {
 
              Ok(())
         })
-        .manage(AppState { projection: std::sync::Mutex::new(serde_json::json!({})) })
+        // .manage(AppState { projection: std::sync::Mutex::new(serde_json::json!({})) }) // Already managed in setup
         .invoke_handler(tauri::generate_handler![
             youversion_proxy,
             get_songs,
@@ -301,6 +779,8 @@ fn main() {
             get_local_ip,
             ensure_projects_dir,
             open_projects_folder_native,
+            save_image_to_app_data,
+            get_system_fonts,
             quit_app
         ])
         .run(tauri::generate_context!())

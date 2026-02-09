@@ -10,46 +10,46 @@ export default function ProjectionLinksModal({ onClose }: { onClose: () => void 
     useEffect(() => {
         const getIp = async () => {
             let ip = '';
+            let port = 3000; // Default para Web
 
-            console.log('Iniciando detecção de IP...');
+            console.log('Iniciando detecção de IP e porta...');
 
-            // 1. Tentar via Tauri (App Desktop)
-            // Tenta usar window.__TAURI__ diretamente para evitar problemas de import dinâmico em build
-            if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+            // 1. Detectar se está no Tauri (App Desktop)
+            const isTauri = typeof window !== 'undefined' && (window as any).__TAURI__;
+
+            if (isTauri) {
+                port = 4523; // Porta do servidor Actix (Tauri)
+                console.log('Modo Tauri detectado, usando porta:', port);
+            } else {
+                port = 3000; // Porta do Next.js dev server (Web)
+                console.log('Modo Web detectado, usando porta:', port);
+            }
+
+            // 2. Tentar via Tauri (App Desktop)
+            if (isTauri) {
                 try {
-                    // Tenta via import (padrão)
-                    try {
-                        const { invoke } = await import('@tauri-apps/api/tauri');
-                        ip = await invoke('get_local_ip');
-                        console.log('IP via import Tauri:', ip);
-                    } catch (errImport) {
-                        // Fallback para window.__TAURI__ se o import falhar (comum em alguns bundles)
-                        console.warn('Import Tauri falhou, tentando global:', errImport);
-                        const tauri = (window as any).__TAURI__;
-                        if (tauri && tauri.invoke) {
-                            ip = await tauri.invoke('get_local_ip');
-                            console.log('IP via global Tauri:', ip);
-                        }
-                    }
+                    const { invoke } = await import('@tauri-apps/api/tauri');
+                    ip = await invoke('get_local_ip');
+                    console.log('IP via Tauri:', ip);
                 } catch (e) {
                     console.error('Erro ao invocar get_local_ip:', e);
                 }
             }
 
-            // 2. Tentar via API Next.js (apenas se estiver em ambiente web real, nao tauri://)
-            // Se estivermos no Tauri, o fetch para /api/local-ip pode falhar ou retornar localhost interno
-            if ((!ip || ip === 'localhost' || ip === 'tauri.localhost') && !((window as any).__TAURI__)) {
+            // 3. Tentar via API Next.js (Web)
+            if (!ip || ip === 'localhost' || ip === 'tauri.localhost') {
                 try {
                     const res = await fetch('/api/local-ip');
                     if (res.ok) {
                         const data = await res.json();
                         if (data.ip) ip = data.ip;
                     }
-                } catch (e) { }
+                } catch (e) {
+                    console.warn('Falha ao buscar IP via API:', e);
+                }
             }
 
-            // 3. Fallback: window.location.hostname
-            // Mas ignoramos 'localhost', '127.0.0.1' e 'tauri.localhost' se quisermos o IP externo
+            // 4. Fallback: window.location.hostname
             if (!ip || ip === 'localhost' || ip === '127.0.0.1' || ip === 'tauri.localhost') {
                 const hostname = window.location.hostname;
                 if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== 'tauri.localhost') {
@@ -57,21 +57,31 @@ export default function ProjectionLinksModal({ onClose }: { onClose: () => void 
                 }
             }
 
-            // Validar resultado final
-            // Se ainda for inválido, definimos como null para mostrar msg de erro ou localhost
+            // 5. Validar e testar conectividade
             if (ip === 'tauri.localhost') ip = '';
 
             if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-                setLocalIp(ip);
-                setBibleLink(`http://${ip}:3000/projection`);
-                setMusicLink(`http://${ip}:3000/projection-music`);
-            } else {
-                setLocalIp('Não detectado (Verifique Wi-Fi)');
-                // Fallback seguro mostrando o que temos
-                const fallbackIp = ip || 'localhost';
-                setBibleLink(`http://${fallbackIp}:3000/projection`);
-                setMusicLink(`http://${fallbackIp}:3000/projection-music`);
+                // Testar se o servidor está acessível
+                const testUrl = `http://${ip}:${port}/api/status`;
+                try {
+                    const testRes = await fetch(testUrl, { method: 'HEAD', signal: AbortSignal.timeout(2000) });
+                    if (testRes.ok) {
+                        console.log('✅ Servidor acessível em:', testUrl);
+                        setLocalIp(ip);
+                        setBibleLink(`http://${ip}:${port}/projection`);
+                        setMusicLink(`http://${ip}:${port}/projection-music`);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Servidor não acessível em:', testUrl, e);
+                }
             }
+
+            // Fallback final
+            setLocalIp('Não detectado (Verifique Wi-Fi)');
+            const fallbackIp = ip || 'localhost';
+            setBibleLink(`http://${fallbackIp}:${port}/projection`);
+            setMusicLink(`http://${fallbackIp}:${port}/projection-music`);
         };
 
         getIp();

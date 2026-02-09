@@ -1,57 +1,54 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { ProjectManager } from '../lib/project-manager';
+import { useProjectionSync } from '../hooks/useProjectionSync';
 
 const ProjectionLinksModal = dynamic(() => import('./ProjectionLinksModal'), { ssr: false });
 const NewProjectModal = dynamic(() => import('./NewProjectModal'), { ssr: false });
 const DownloadedBiblesModal = dynamic(() => import('./DownloadedBiblesModal'), { ssr: false });
+const MobileRemoteModal = dynamic(() => import('./MobileRemoteModal'), { ssr: false });
+
 
 export default function MenuBar() {
+    const { sendState } = useProjectionSync('sender');
     const [showFileMenu, setShowFileMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
+    const [showLinksMenu, setShowLinksMenu] = useState(false); // NOVO
+    const [shortcutsEnabled, setShortcutsEnabled] = useState(false); // NOVO
     const [recentProjects, setRecentProjects] = useState<{ path: string, label: string }[]>([]);
     const [currentProjectDisplay, setCurrentProjectDisplay] = useState<string | null>(null);
     const [showLinksModal, setShowLinksModal] = useState(false);
     const [showNewProjectModal, setShowNewProjectModal] = useState(false);
     const [showOfflineBiblesModal, setShowOfflineBiblesModal] = useState(false);
+    const [showRemoteModal, setShowRemoteModal] = useState(false);
+
 
     useEffect(() => {
         const load = async () => {
             const recents = await ProjectManager.getRecentsWithLabels();
             setRecentProjects(recents);
 
-            const currentPath = localStorage.getItem('current_project_path');
-            if (currentPath) {
-                try {
-                    // Tenta formatar bonito: DRIVE:.../PASTA/ARQUIVO
-                    // Ex: C:\Users\Docs\MediaChurch\Projetos\Culto.chama
-                    const parts = currentPath.split(/[\\/]/);
-                    const name = parts.pop() || 'Sem Título';
-                    const parentFolder = parts.pop() || '';
-
-                    // Pega o drive (ex: C:)
-                    const driveMatch = currentPath.match(/^([a-zA-Z]:)/);
-                    const drive = driveMatch ? driveMatch[1] : '';
-
-                    let display = 'Projeto';
-                    if (drive) display += `/${drive}`;
-                    if (parentFolder) display += `/${parentFolder}`;
-                    display += `/${name}`;
-
-                    setCurrentProjectDisplay(display);
-                } catch (e) {
-                    setCurrentProjectDisplay(currentPath);
-                }
+            const projectInfo = await ProjectManager.getCurrentProjectInfo();
+            if (projectInfo) {
+                setCurrentProjectDisplay(projectInfo.display);
             } else {
                 setCurrentProjectDisplay(null);
             }
+
+            // LOAD SHORTCUTS PREF
+            const shortcutsPref = localStorage.getItem('bible_shortcuts_enabled');
+            setShortcutsEnabled(shortcutsPref === 'true');
         };
 
         load();
 
         const updateRecents = () => load();
         window.addEventListener('recents-updated', updateRecents);
-        return () => window.removeEventListener('recents-updated', updateRecents);
+        window.addEventListener('project-loaded', updateRecents);
+        return () => {
+            window.removeEventListener('recents-updated', updateRecents);
+            window.removeEventListener('project-loaded', updateRecents);
+        };
     }, []);
 
     // Atalho CTRL + S e CTRL + N
@@ -92,6 +89,7 @@ export default function MenuBar() {
     const closeAll = () => {
         setShowFileMenu(false);
         setShowToolsMenu(false);
+        setShowLinksMenu(false);
     };
 
     const handleExit = async () => {
@@ -118,7 +116,7 @@ export default function MenuBar() {
     return (
         <>
             <div className="fixed top-0 left-0 right-0 z-50 bg-[#2d2d2d] border-b border-[#111] select-none h-8 flex items-center shadow-sm">
-                <div className="flex items-center h-full text-xs text-gray-300 font-sans px-1">
+                <div className="w-full flex items-center h-full text-xs text-gray-300 font-sans px-1">
 
                     {/* MENU ARQUIVOS */}
                     <div className="relative group">
@@ -192,6 +190,34 @@ export default function MenuBar() {
                         )}
                     </div>
 
+                    {/* MENU LINKS (NOVO) */}
+                    <div className="relative group">
+                        <button
+                            className={`px-3 h-full hover:bg-[#3d3d3d] transition-colors flex items-center ${showLinksModal ? 'bg-[#3d3d3d] text-white' : ''}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (showLinksMenu) closeAll();
+                                else { closeAll(); setShowLinksMenu(true); }
+                            }}
+                        >
+                            Links
+                        </button>
+
+                        {showLinksMenu && (
+                            <div className="absolute top-8 left-0 bg-[#2d2d2d] border border-[#111] shadow-xl min-w-[200px] py-1 flex flex-col z-50">
+                                <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white" onClick={() => { setShowLinksModal(true); closeAll(); }}>
+                                    Links de Projeção
+                                </button>
+                                <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white" onClick={() => { setShowOfflineBiblesModal(true); closeAll(); }}>
+                                    Gerenciar Bíblias Offline
+                                </button>
+                                <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white" onClick={() => { setShowRemoteModal(true); closeAll(); }}>
+                                    Mobile Remote (QR Code)
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     {/* MENU FERRAMENTAS */}
                     <div className="relative group">
                         <button
@@ -207,14 +233,27 @@ export default function MenuBar() {
 
                         {showToolsMenu && (
                             <div className="absolute top-8 left-0 bg-[#2d2d2d] border border-[#111] shadow-xl min-w-[200px] py-1 flex flex-col z-50">
-                                <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white" onClick={() => { setShowLinksModal(true); closeAll(); }}>
-                                    Links de Projeção
-                                </button>
                                 <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white" onClick={() => { window.dispatchEvent(new Event('open-projection-editor')); closeAll(); }}>
                                     Editar Projeção
                                 </button>
-                                <button className="text-left px-4 py-2 hover:bg-[#007acc] hover:text-white" onClick={() => { setShowOfflineBiblesModal(true); closeAll(); }}>
-                                    Gerenciar Bíblias Offline
+
+                                <div className="h-[1px] bg-[#444] my-1"></div>
+
+                                {/* ATIVAR ATALHOS TOGGLE */}
+                                <button
+                                    className="text-left px-4 py-2 hover:bg-[#3d3d3d] hover:text-white flex items-center gap-2"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const newState = !shortcutsEnabled;
+                                        setShortcutsEnabled(newState);
+                                        localStorage.setItem('bible_shortcuts_enabled', String(newState));
+                                        window.dispatchEvent(new CustomEvent('bible-shortcuts-toggle', { detail: newState }));
+                                    }}
+                                >
+                                    <div className={`w-3 h-3 border border-gray-400 rounded-sm flex items-center justify-center ${shortcutsEnabled ? 'bg-[#007acc] border-[#007acc]' : ''}`}>
+                                        {shortcutsEnabled && <span className="text-white text-[8px]">✓</span>}
+                                    </div>
+                                    <span>Ativar Atalhos</span>
                                 </button>
                             </div>
                         )}
@@ -229,8 +268,54 @@ export default function MenuBar() {
                         </div>
                     )}
 
-                    {/* CANTO DIREITO: PROJEÇÃO LOUVOR + VERSÃO */}
+                    {/* CANTO DIREITO: MODO MOBILE + PROJEÇÃO LOUVOR + VERSÃO */}
                     <div className="ml-auto flex items-center gap-3 pr-3">
+                        {/* BOTÃO MODO MOBILE/DESKTOP */}
+                        <button
+                            onClick={() => {
+                                const newMode = !localStorage.getItem('mobileMode') || localStorage.getItem('mobileMode') === 'false';
+                                localStorage.setItem('mobileMode', String(newMode));
+                                window.dispatchEvent(new CustomEvent('mobile-mode-toggle', { detail: newMode }));
+
+                                // V114: SEND CONTROL MESSAGES (LOCK/UNLOCK)
+                                if (newMode) {
+                                    // Activating Mobile -> UNLOCK receiver
+                                    sendState({
+                                        type: 'control',
+                                        action: 'unlock_mobile',
+                                        source: 'desktop',
+                                        timestamp: Date.now()
+                                    });
+                                } else {
+                                    // Activating Desktop -> LOCK receiver & RELOAD
+                                    sendState({
+                                        type: 'control',
+                                        action: 'lock_mobile',
+                                        source: 'desktop',
+                                        timestamp: Date.now()
+                                    });
+                                    // Optional: Send reset to clear screen? "lock_mobile" logic could handle it if needed.
+                                    // Keeping existing reload just in case, but usually lock is enough.
+                                    setTimeout(() => {
+                                        sendState({
+                                            type: 'control',
+                                            action: 'reload',
+                                            source: 'desktop',
+                                            timestamp: Date.now()
+                                        });
+                                    }, 100);
+                                }
+                            }}
+                            className={`text-[10px] uppercase font-bold px-3 py-1 rounded flex items-center gap-1 transition shadow-sm border ${localStorage.getItem('mobileMode') === 'true'
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-500'
+                                : 'bg-[#1a1a1a] hover:bg-[#333] text-gray-300 border-[#444]'
+                                }`}
+                            title="Alternar entre Modo Desktop (envia comandos) e Modo Mobile (recebe comandos)"
+                        >
+                            {localStorage.getItem('mobileMode') === 'true' ? 'ATIVAR DESKTOP' : 'ATIVAR MOBILE'}
+                        </button>
+
+
                         <button
                             onClick={() => window.location.href = '/music'}
                             className="bg-[#1a1a1a] hover:bg-[#333] text-gray-300 border border-[#444] text-[10px] uppercase font-bold px-3 py-1 rounded flex items-center gap-1 transition shadow-sm"
@@ -239,7 +324,7 @@ export default function MenuBar() {
                             Projeção Louvor <span className="text-blue-500 font-normal opacity-80">(Beta)</span>
                         </button>
                         <div className="w-px h-4 bg-[#444]"></div>
-                        <span className="opacity-40 text-[10px] font-mono select-none">v1.0.0</span>
+                        <span className="opacity-40 text-[10px] font-mono select-none">v0.3.48</span>
                     </div>
 
                 </div>
@@ -256,6 +341,11 @@ export default function MenuBar() {
 
             {/* MODAL OFFLINE BIBLES */}
             {showOfflineBiblesModal && <DownloadedBiblesModal onClose={() => setShowOfflineBiblesModal(false)} />}
+
+            {/* MODAL REMOTE MOBILE */}
+            {showRemoteModal && <MobileRemoteModal onClose={() => setShowRemoteModal(false)} />}
+
+
         </>
     );
 }

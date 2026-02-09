@@ -5,8 +5,16 @@ const globalAny: any = global;
 
 // Initialize global cache if it doesn't exist
 if (!globalAny.projectionCache) {
-    globalAny.projectionCache = null;
+    globalAny.projectionCache = { verseText: '', reference: '', slideIndex: 0, style: {}, timestamp: Date.now() };
 }
+
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '30mb',
+        },
+    },
+};
 
 export default async function handler(req: any, res: any) {
     // Set headers to prevent caching and allow cross-origin
@@ -25,19 +33,19 @@ export default async function handler(req: any, res: any) {
             // 1. Update In-Memory Cache (Instant)
             globalAny.projectionCache = currentData;
 
-            // 2. Persist to Supabase (Async/Background)
-            // We await here to ensure data consistency in local dev environment
-            const { error } = await supabase
-                .from('projection_state')
-                .update({
-                    data: currentData,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', 1);
-
-            if (error) {
-                console.error("Supabase Sync Error:", error);
-                // We don't throw here to avoid failing the client request based on DB latency
+            // 2. Persist to Supabase (FIRE AND FORGET - Don't await to avoid latency/500s)
+            if (supabase) {
+                (supabase
+                    .from('projection_state')
+                    .update({
+                        data: currentData,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', 1) as any)
+                    .then(({ error }: any) => {
+                        if (error) console.error("Supabase Background Sync Error:", error);
+                    })
+                    .catch((err: any) => console.error("Supabase Promise Error:", err));
             }
 
             return res.status(200).json({ success: true, mode: 'cached' });
@@ -48,29 +56,49 @@ export default async function handler(req: any, res: any) {
     } else {
         // GET Request
         try {
-            // 1. Serve from In-Memory Cache (Light Speed)
+            // 1. Metadata Request (?meta=true)
+            // Permite que o receiver verifique se o dado mudou sem baixar 10MB de imagem toda vez
+            if (req.query.meta === 'true') {
+                const cache = globalAny.projectionCache || {};
+
+                // Garantia de tipos para evitar 500
+                const ts = typeof cache.timestamp === 'number' ? cache.timestamp : 0;
+                const idx = typeof cache.slideIndex === 'number' ? cache.slideIndex : 0;
+                const text = typeof cache.verseText === 'string' ? cache.verseText.substring(0, 20) : '';
+
+                return res.status(200).json({
+                    timestamp: ts,
+                    slideIndex: idx,
+                    verseText: text,
+                    hasStyle: !!cache.style
+                });
+            }
+
+            // 2. Serve from In-Memory Cache (Light Speed)
             if (globalAny.projectionCache) {
                 return res.status(200).json(globalAny.projectionCache);
             }
 
-            // 2. Fallback: Fetch from Supabase (Cold Start)
-            const { data, error } = await supabase
-                .from('projection_state')
-                .select('data')
-                .eq('id', 1)
-                .single();
+            // 3. Fallback: Fetch from Supabase (Cold Start)
+            if (supabase) {
+                const { data, error } = await supabase
+                    .from('projection_state')
+                    .select('data')
+                    .eq('id', 1)
+                    .single();
 
-            if (error && error.code !== 'PGRST116') {
-                throw error;
+                if (!error && data?.data) {
+                    globalAny.projectionCache = data.data;
+                    console.log("[StatusAPI] Cache aquecido via Supabase");
+                    return res.status(200).json(data.data);
+                }
             }
 
-            const finalData = data?.data || {};
-            globalAny.projectionCache = finalData; // Warm up cache
-
-            return res.status(200).json(finalData);
+            return res.status(200).json({ verseText: '', reference: '', style: {}, timestamp: Date.now() });
         } catch (error) {
             console.error("Read Error:", error);
-            return res.status(500).json({ error: 'Read failed' });
+            // Nunca retorne 500 no GET para não travar o loop de pooling
+            return res.status(200).json({ verseText: '', reference: '', style: {}, timestamp: 0 });
         }
     }
 }

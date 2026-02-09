@@ -1,6 +1,6 @@
 {
   "name": "projection-church",
-  "version": "0.1.0",
+  "version": "0.3.48",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -15,15 +15,17 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.91.1",
+    "@tauri-apps/api": "^1.6.0",
+    "@tauri-apps/plugin-sql": "^2.3.1",
     "formidable": "^3.5.4",
     "next": "16.1.4",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.19",
-    "@tauri-apps/api": "^2.9.1",
     "@tauri-apps/cli": "^1.6.3",
     "@types/node": "^20.19.30",
     "@types/react": "^19",

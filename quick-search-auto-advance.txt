@@ -1,0 +1,74 @@
+// Quick Search Auto-Advance Logic
+// Replace lines 267-285 and 322-330 in BibleSearch.tsx
+
+// FIRST REPLACEMENT (lines 267-285):
+if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+    e.preventDefault();
+    const char = e.key.toUpperCase();
+    const bookList = Object.entries(BIBLE_BOOKS_DATA).map(([id, data]) => ({ id, ...data }));
+    const matches = bookList.filter(b => 
+        b.name.toUpperCase().startsWith(char) || 
+        b.abbr.toUpperCase().startsWith(char)
+    );
+    
+    // Auto-advance if unique match
+    if (matches.length === 1) {
+        const match = matches[0];
+        YouVersionClient.getChapters(currentVersion, match.id).then(chapters => {
+            setQuickSearch({
+                visible: true,
+                stage: 'chapter',
+                input: '',
+                matchedBook: match,
+                selectedChapter: null,
+                chapterCount: chapters.length,
+                verseCount: 0,
+                error: ''
+            });
+        });
+    } else {
+        setQuickSearch({
+            visible: true,
+            stage: 'book',
+            input: char,
+            matchedBook: matches[0] || null,
+            selectedChapter: null,
+            chapterCount: 0,
+            verseCount: 0,
+            error: matches.length === 0 ? 'Livro não encontrado' : ''
+        });
+    }
+}
+
+// SECOND REPLACEMENT (lines 322-330):
+} else if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+    e.preventDefault();
+    const newInput = quickSearch.input + e.key.toUpperCase();
+    const bookList = Object.entries(BIBLE_BOOKS_DATA).map(([id, data]) => ({ id, ...data }));
+    const matches = bookList.filter(b => 
+        b.name.toUpperCase().startsWith(newInput) || 
+        b.abbr.toUpperCase().startsWith(newInput)
+    );
+    
+    // Auto-advance if unique match
+    if (matches.length === 1) {
+        const match = matches[0];
+        YouVersionClient.getChapters(currentVersion, match.id).then(chapters => {
+            setQuickSearch(prev => ({
+                ...prev,
+                stage: 'chapter',
+                input: '',
+                matchedBook: match,
+                chapterCount: chapters.length,
+                error: ''
+            }));
+        });
+    } else {
+        setQuickSearch(prev => ({ 
+            ...prev, 
+            input: newInput, 
+            matchedBook: matches[0] || null, 
+            error: matches.length === 0 ? 'Livro não encontrado' : '' 
+        }));
+    }
+}

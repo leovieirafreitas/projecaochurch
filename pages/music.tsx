@@ -5,6 +5,8 @@ import { VagalumeClient, MusicSearchResult } from '../lib/vagalume-client';
 import type { MusicSearchResult as MusicType } from '../lib/vagalume-client';
 import BibleProjection from '../components/BibleProjection'; // Reutiliza o editor
 import { supabase } from '../lib/supabaseClient';
+import { StorageHelper } from '../lib/storage-helper';
+import { useProjectionSync } from '../hooks/useProjectionSync';
 
 export default function MusicPage() {
     const [query, setQuery] = useState('');
@@ -22,7 +24,7 @@ export default function MusicPage() {
     const [previewSettings, setPreviewSettings] = useState<any>(null);
 
     // Performance Broadcast
-    const lastBroadcastStyleRef = useRef<string>('');
+    const lastBroadcastSyncRef = useRef<string>('');
 
     // --- LOGICA SUPABASE ---
     const [tab, setTab] = useState<'online' | 'local'>('online');
@@ -181,56 +183,86 @@ export default function MusicPage() {
         syncToApi(index);
     };
 
+    // --- SINCRONIZAÇÃO UNIFICADA ---
+    const { sendState } = useProjectionSync('sender');
+
     // Sincronização (Cópia da lógica do BibleSearch)
     const syncToApi = (index: number) => {
         const text = index >= 0 ? slides[index] : '';
-        const ref = selectedMusic ? `${selectedMusic.title.toUpperCase()}` : ''; // Apenas Título, ou Título - Artista
+        const ref = selectedMusic ? `${selectedMusic.title.toUpperCase()}` : '';
 
         // Fallback style se não tiver settings carregadas
         const style = previewSettings || {};
 
+        // OTIMIZAÇÃO: Remove imagem gigante do payload de sincronização
+        let styleToSync = style;
+        if (styleToSync.backgroundImage && styleToSync.backgroundImage.length > 5000) {
+            styleToSync = { ...styleToSync, backgroundImage: 'INDEXED_DB' };
+        }
+
         const payload = {
             verseText: text,
-            reference: ref, // Vamos usar o campo de referência para o Título da Música
-            slideIndex: 0, // Música geralmente não pagina o slide individualmente (o slide já é a página)
+            reference: ref,
+            slideIndex: index,
             version: 'MUSIC',
-            style: style
+            style: styleToSync,
+            timestamp: Date.now()
         };
 
-        // 1. BROADCAST OTIMIZADO
-        try {
-            const currentStyleStr = JSON.stringify(style);
-            const styleChanged = currentStyleStr !== lastBroadcastStyleRef.current;
+        // Evita enviar se for exatamente o mesmo payload (exceto timestamp)
+        const currentPayloadStr = JSON.stringify({ ...payload, timestamp: 0 });
+        if (currentPayloadStr === lastBroadcastSyncRef.current) return;
+        lastBroadcastSyncRef.current = currentPayloadStr;
 
-            const broadcastPayload = {
-                ...payload,
-                style: styleChanged ? style : undefined
-            };
-
-            const bc = new BroadcastChannel('music_channel');
-            bc.postMessage(broadcastPayload);
-            bc.close();
-
-            if (styleChanged) lastBroadcastStyleRef.current = currentStyleStr;
-        } catch (e) { console.error(e); }
-
-        // 2. API FALLBACK
-        fetch('/api/status-music', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }).catch(err => console.error(err));
+        sendState(payload);
     };
 
-    // Carregar configurações salvas
+    // Carregar configurações salvas (Otimizado)
+    const lastSettingsRawRef = useRef<string>('');
+    const lastIndexedBgRef = useRef<string | null>(null);
+
     useEffect(() => {
-        const load = () => {
+        const load = async () => {
             const saved = localStorage.getItem('music_settings');
-            if (saved) setPreviewSettings(JSON.parse(saved));
+            if (saved && saved !== lastSettingsRawRef.current) {
+                try {
+                    lastSettingsRawRef.current = saved;
+                    const parsed = JSON.parse(saved);
+
+                    // Só busca no IndexedDB se necessário
+                    if (!parsed.backgroundImage || parsed.backgroundImage.length < 100) {
+                        if (lastIndexedBgRef.current) {
+                            parsed.backgroundImage = lastIndexedBgRef.current;
+                        } else {
+                            const indexedBg = await StorageHelper.getBackground('music_settings');
+                            if (indexedBg) {
+                                parsed.backgroundImage = indexedBg;
+                                lastIndexedBgRef.current = indexedBg;
+                            }
+                        }
+                    } else if (parsed.backgroundImage.startsWith('data:')) {
+                        lastIndexedBgRef.current = parsed.backgroundImage;
+                    }
+
+                    setPreviewSettings((prev: any) => {
+                        if (JSON.stringify(prev) === JSON.stringify(parsed)) return prev;
+                        return parsed;
+                    });
+                } catch (e) { }
+            }
         };
+
+        const handleStorage = () => { lastSettingsRawRef.current = ''; lastIndexedBgRef.current = null; load(); };
+        window.addEventListener('storage', handleStorage);
+        window.addEventListener('local-storage-update', handleStorage);
+
         load();
         const interval = setInterval(load, 2000);
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('storage', handleStorage);
+            window.removeEventListener('local-storage-update', handleStorage);
+        };
     }, []);
 
     // Atualiza projeção se settings mudarem

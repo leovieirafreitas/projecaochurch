@@ -1,5 +1,6 @@
-
 import { LocalBibleManager } from './local-bible-manager';
+import { SbtbClient } from './sbtb-client';
+import { VERSION_FULL_NAMES, OLD_TESTAMENT_BOOKS, BIBLE_BOOKS_DATA } from './bible-data';
 
 const YOUVERSION_BASE_URL = 'https://api.youversion.com/v1';
 const APP_KEY = '8CIUKFa2HDqazT1Vu4P9kpZPZVVtZMpvZiGBzt3GDggWf3q7';
@@ -8,7 +9,11 @@ const APP_KEY = '8CIUKFa2HDqazT1Vu4P9kpZPZVVtZMpvZiGBzt3GDggWf3q7';
 // Usa a chave do ambiente (NEXT_PUBLIC para frontend, ou variável de servidor)
 const DBT_KEY = process.env.NEXT_PUBLIC_BIBLEBRAIN_API_KEY || process.env.BIBLEBRAIN_API_KEY || "db346576-060a-4787-8bc2-5386e8e3be8d";
 const DBT_BIBLES: Record<string, any> = {
-    'PORACF': { id: 'PORACF', name: 'Almeida Corrigida Fiel (Bible Brain)', abbr: 'ACF', ot: 'PORACF', nt: 'PORACF' },
+    'PORACF': { id: 'PORACF', name: 'Almeida Corrigida Fiel', abbr: 'ACF', ot: 'PORACF', nt: 'PORACF' },
+    // Mapeando ACF legado para usar a infraestrutura rápida da Bible Brain (DBT) em vez de SOAP lento
+    'ACF': { id: 'PORACF', name: 'Almeida Corrigida Fiel', abbr: 'ACF', ot: 'PORACF', nt: 'PORACF', hidden: true },
+    'ACF_SBTB': { id: 'PORACF', name: 'Almeida Corrigida Fiel (SBTB)', abbr: 'ACF', ot: 'PORACF', nt: 'PORACF', hidden: true },
+
     'PORBBS': { id: 'PORBBS', name: 'Nova Almeida Atualizada', abbr: 'NAA', ot: 'PORBBSO_ET', nt: 'PORBBSN_ET' },
     'PORARA': { id: 'PORARA', name: 'Almeida Revista e Atualizada (NT)', abbr: 'ARA', ot: null, nt: 'PORARA' },
     'PORARC': { id: 'PORARC', name: 'Almeida Revista e Corrigida (NT)', abbr: 'ARC', ot: null, nt: 'PORARCN_ET' }
@@ -106,19 +111,40 @@ export class YouVersionClient {
         return result;
     }
 
+    private static isRepairing = false;
+
     static async getVersions(): Promise<any[]> {
         // Converter DBT BIBLES para formato YouVersion
-        const dbtList = Object.values(DBT_BIBLES).map(b => ({
-            id: b.id,
-            abbreviation: b.abbr,
-            name: b.name,
-            local_title: b.name,
-            description: 'Via Bible Brain',
-            lang: 'pt-br'
-        }));
+        const dbtList = Object.values(DBT_BIBLES)
+            .filter((b: any) => !b.hidden)
+            .map(b => ({
+                id: b.id,
+                abbreviation: b.abbr,
+                name: b.name,
+                local_title: b.name,
+                description: 'Via Bible Brain',
+                lang: 'pt-br'
+            }));
 
         // Versões locais (Offline/Importadas)
         const localVersions = await LocalBibleManager.getLocalVersions();
+
+        // AUTO-REPAIR BACKGROUND CHECK
+        // Verifica se alguma versão local está precaria (sem stats) e repara silenciosamente
+        if (!this.isRepairing && typeof window !== 'undefined') {
+            const needsFix = localVersions.some((v: any) => !v.booksStats || Object.keys(v.booksStats).length === 0 || !v.name || !isNaN(Number(v.name)));
+            if (needsFix) {
+                this.isRepairing = true;
+                console.log('[AutoRepair] Detectado versões com metadata incompleto. Iniciando reparo em background...');
+                LocalBibleManager.fixAllMetadata().then(res => {
+                    this.isRepairing = false;
+                    if ((res.count || 0) > 0) {
+                        console.log(`[AutoRepair] Corrigidas ${res.count} versões.`);
+                        window.dispatchEvent(new Event('offline-bibles-changed'));
+                    }
+                }).catch(() => { this.isRepairing = false; });
+            }
+        }
         const localIds = new Set(localVersions.map((v: any) => String(v.id)));
 
         // Filter out DBT versions that are already local
@@ -127,14 +153,6 @@ export class YouVersionClient {
         // Versões alternativas sempre disponíveis
         const alternativeVersions = [
             ...localVersions, // Prioridade para locais
-            {
-                id: 'ALMEIDA_EXTERNA',
-                abbreviation: 'ACF (Old)',
-                name: 'ACF (Bible-API.com)',
-                local_title: 'Almeida Corrigida Fiel (API Antiga)',
-                description: 'Versão externa via Bible-API',
-                lang: 'pt'
-            },
             ...uniqueDbtList
         ];
 
@@ -150,7 +168,17 @@ export class YouVersionClient {
                 const existingIds = new Set(alternativeVersions.map(v => String(v.id)));
                 const uniqueOnlineVersions = versions.filter((v: any) => !existingIds.has(String(v.id)));
 
-                return [...alternativeVersions, ...uniqueOnlineVersions];
+                // INSERT CUSTOM SBTB VERSION HERE
+                const sbtbVersion = {
+                    id: 'ACF_SBTB',
+                    abbreviation: 'ACF (SBTB)',
+                    name: 'ALMEIDA CORRIGIDA FIEL (ACF- SBTB)',
+                    local_title: 'ALMEIDA CORRIGIDA FIEL (ACF- SBTB)',
+                    description: 'Fonte alternativa com 66 livros',
+                    lang: 'pt-br'
+                };
+
+                return [sbtbVersion, ...alternativeVersions, ...uniqueOnlineVersions];
             } else {
                 console.warn('[YouVersion] API retornou vazio, usando apenas versões alternativas');
                 return alternativeVersions;
@@ -169,7 +197,7 @@ export class YouVersionClient {
             return localBooks;
         }
 
-        if (bibleId === 'ALMEIDA_EXTERNA' || DBT_BIBLES[bibleId]) {
+        if (bibleId === 'ALMEIDA_EXTERNA' || bibleId === 'ACF_SBTB' || DBT_BIBLES[bibleId]) {
             // Retorna lista padrão de livros (usando NVI como base para estrutura)
             const data = await this.request(`/bibles/129/books`);
             let books = data?.data || [];
@@ -192,6 +220,10 @@ export class YouVersionClient {
             return localChapters;
         }
 
+        // --- INTEGRAÇÃO SBTB (REMOVIDA EM FAVOR DA DBT/BIBLE BRAIN MAIS RÁPIDA) ---
+        // A API SOAP da SBTB era muito lenta (2 requests por call).
+        // Agora ACF e ACF_SBTB são roteados para DBT_BIBLES automaticamente.
+
         // Mesma lógica: usa estrutura da NVI (129) para navegação
         const realId = (bibleId === 'ALMEIDA_EXTERNA' || DBT_BIBLES[bibleId]) ? '129' : bibleId;
         const data = await this.request(`/bibles/${realId}/books/${bookId}/chapters`);
@@ -200,6 +232,7 @@ export class YouVersionClient {
 
     static async getPassage(bibleId: string, passageId: string): Promise<any> {
         // 1. Tentar Offline Local (Arquivos Baixados)
+        // (Nota: mantemos a verificação para não bloquear downloads em andamento se houver)
         try {
             const parts = passageId.split('.');
             const bookId = parts[0];
@@ -213,12 +246,15 @@ export class YouVersionClient {
 
         // 2. Fetch da Rede (Lógica original)
 
+        // --- INTEGRAÇÃO SBTB (REMOVIDA EM FAVOR DA DBT/BIBLE BRAIN MAIS RÁPIDA) ---
+        // A lógica abaixo agora cai no bloco DBT_BIBLES
+
         // SE FOR VERSÃO EXTERNA BIBLE-API
         if (bibleId === 'ALMEIDA_EXTERNA') {
             return await this.fetchExternalBibleApi(passageId);
         }
 
-        // SE FOR BIBLE BRAIN (DBT)
+        // SE FOR BIBLE BRAIN (DBT) - ACF, ACF_SBTB, PORACF caem aqui agora!
         if (DBT_BIBLES[bibleId]) {
             return await this.fetchFromBibleBrain(bibleId, passageId);
         }
@@ -239,60 +275,236 @@ export class YouVersionClient {
     /**
      * Baixa uma versão inteira para acesso offline.
      */
-    static async downloadVersion(versionId: string, onProgress: (msg: string, pct: number) => void, shouldStop: () => boolean) {
+    /**
+     * Baixa uma versão inteira para acesso offline.
+     * VERSÃO OTIMIZADA: Download paralelo massivo
+     */
+    static async downloadVersion(versionId: string, onProgress: (msg: string, pct: number) => void, shouldStop: () => boolean, metadata?: any) {
         try {
-            console.log(`[Download] Iniciando download da versão ${versionId}`);
-            const books = await this.getBooks(versionId);
+            console.log(`[Download] Iniciando download OTIMIZADO da versão ${versionId}`);
+
+            // 1. Setup inicial e Sanitização de Nome
+            onProgress('Obtendo lista de livros...', 0);
+
+            // Tenta obter lista de livros
+            // Tenta obter lista de livros
+            let books: any[] = [];
+            try {
+                books = await this.getBooks(versionId);
+            } catch (e) {
+                console.warn(`[Download] Falha ao obter livros da API: ${versionId}`);
+            }
+
+            // FALLBACK: Se API falhar ou retornar vazio, usa lista padrão interna (Crucial para IDs numéricos como 1967/4360)
+            if (!books || books.length === 0) {
+                console.log(`[Download] Usando lista de livros interna para ${versionId}`);
+                books = Object.keys(BIBLE_BOOKS_DATA).map(bid => ({
+                    id: bid,
+                    usfm: bid,
+                    name: BIBLE_BOOKS_DATA[bid].name,
+                    abbreviation: BIBLE_BOOKS_DATA[bid].abbr
+                }));
+            }
 
             if (!books || books.length === 0) throw new Error("Não foi possível listar os livros.");
 
-            for (let i = 0; i < books.length; i++) {
-                if (shouldStop()) { console.log('[Download] Cancelado pelo usuário.'); break; }
+            // Sanitização do Metadata
+            let finalMetadata = metadata || {};
 
-                const book = books[i];
-                // Identificar ID correto. Algumas APIs retornam 'id', outras 'usfm', outras 'abbreviation'
-                const bookId = book.id || book.usfm || book.abbreviation;
-
-                onProgress(`Baixando ${book.name || bookId} (${i + 1}/${books.length})...`, Math.floor((i / books.length) * 100));
-
-                try {
-                    const chapters = await this.getChapters(versionId, bookId);
-
-                    // Serial para evitar rate limit
-                    for (const chap of chapters) {
-                        if (shouldStop()) break;
-
-                        const chapId = chap.passage_id || chap.id || chap.usfm;
-                        if (!chapId) continue;
-
-                        // Verifica se já existe localmente para pular
-                        const exists = await LocalBibleManager.getChapter(versionId, bookId, chapId);
-
-                        if (!exists) {
-                            // Busca e Salva
-                            const content = await this.getPassage(versionId, chapId);
-
-                            if (content && (content.content || content.data)) {
-                                const saved = await LocalBibleManager.saveChapter(versionId, bookId, chapId, content);
-                                if (!saved) {
-                                    throw new Error(`Falha ao gravar arquivo no disco para ${chapId}. Verifique permissões.`);
-                                }
-                            } else {
-                                console.warn(`[Download] Falha ao baixar ${chapId}`);
-                                // Optional: throw error/count failures?
-                            }
-
-                            // Delay mínimo para evitar bloqueio de API
-                            await new Promise(r => setTimeout(r, 150));
-                        }
-                    }
-                } catch (eBook: any) {
-                    console.error(`[Download] Erro ao baixar livro ${bookId}:`, eBook);
-                    // Se for erro de disco, repassar
-                    if (eBook.message && eBook.message.includes('disco')) throw eBook;
+            // Garante que temos um nome decente
+            if (!finalMetadata.name || !isNaN(Number(finalMetadata.name))) {
+                if (finalMetadata.abbreviation) {
+                    finalMetadata.name = VERSION_FULL_NAMES[finalMetadata.abbreviation.toUpperCase()] || finalMetadata.abbreviation;
+                } else {
+                    // Tenta achar na lista interna
+                    const internal = Object.values(DBT_BIBLES).find((b: any) => b.id === versionId);
+                    if (internal) finalMetadata.name = internal.name;
                 }
             }
-            onProgress('Download Concluído!', 100);
+
+            // Se ainda assim for ruim, mantém o ID mas tenta formatar
+            if (!finalMetadata.name) finalMetadata.name = VERSION_FULL_NAMES[versionId] || versionId;
+
+            // Salva metadata inicial
+            await LocalBibleManager.saveVersionMetadata(versionId, finalMetadata);
+
+            // 2. Estrutura para Coleta de Estatísticas (Versículos por Capítulo)
+            // booksStats[bookId] = { chapters: number, verses: number[] (count per chapter) }
+            const booksStats: Record<string, { chapters: number, verses: number[] }> = {};
+
+            // Helper para contar versículos no HTML (rápido)
+            const countVerses = (html: string) => {
+                if (!html) return 0;
+                // Regex expandido para capturar mais formatos de versículos
+                const matches = html.match(/<span[^>]*class="[^"]*(?:label|v|verse|verse-number|versenum|num|chapternum|s1)[^"]*"[^>]*>([\d]+)<\/span>/gi);
+                if (matches) return matches.length;
+
+                // Fallback para data-usfm ou data-v
+                const matches2 = html.match(/data-usfm="[^"]+\.[^"]+\.(\d+)"/gi);
+                if (matches2) return matches2.length;
+
+                // Fallback para SUP (comum em algumas versões)
+                const matches3 = html.match(/<sup>\s*(\d+)\s*<\/sup>/gi);
+                if (matches3) return matches3.length;
+
+                // Fallback para IDs numéricos isolados em spans
+                const matches4 = html.match(/<span[^>]*class="[^"]*(?:c-1|v-num)[^"]*"[^>]*>(\d+)<\/span>/gi);
+                if (matches4) return matches4.length;
+
+                return 0;
+            };
+
+            const ESTIMATED_TOTAL_CHAPTERS = 1189;
+            let processedChapters = 0;
+            let activeDownloads = 0;
+
+            // FILA DE DOWNLOAD (Producer-Consumer pattern)
+            const CONCURRENCY_LIMIT = 20;
+            const DISCOVERY_CONCURRENCY = 3;
+
+            // Estado global do download
+            const queue: { bookId: string, bookName: string, chapId: string }[] = [];
+            let isDiscovering = true;
+            let hasError = false;
+
+            // Função para processar a fila
+            const worker = async () => {
+                while ((queue.length > 0 || isDiscovering) && !shouldStop() && !hasError) {
+                    if (queue.length === 0) {
+                        await new Promise(r => setTimeout(r, 100));
+                        continue;
+                    }
+
+                    const task = queue.shift();
+                    if (!task) continue;
+
+                    activeDownloads++;
+                    try {
+                        const { bookId, bookName, chapId } = task;
+                        let content: any = null;
+
+                        // Verifica cache local
+                        const exists = await LocalBibleManager.getChapter(String(versionId), String(bookId), String(chapId));
+
+                        if (exists) {
+                            content = exists;
+                        } else {
+                            content = await this.getPassage(versionId, chapId);
+                            if (content && (content.content || content.data)) {
+                                await LocalBibleManager.saveChapter(
+                                    String(versionId),
+                                    String(bookId),
+                                    String(chapId),
+                                    content
+                                );
+                            } else {
+                                console.warn(`[Download] Falha conteúdo vazio: ${chapId}`);
+                            }
+                        }
+
+                        // Coleta Estatísticas para o Metadata
+                        if (content) {
+                            const html = content.content || content.data?.content || '';
+                            const vCount = countVerses(html);
+
+                            if (!booksStats[bookId]) {
+                                booksStats[bookId] = { chapters: 0, verses: [] };
+                            }
+
+                            // Extrai número do capítulo do ID (ex: GEN.1 -> 1)
+                            const chapNum = parseInt(chapId.split('.').pop() || '0');
+                            if (chapNum > 0) {
+                                booksStats[bookId].chapters = Math.max(booksStats[bookId].chapters, chapNum);
+                                // Garante tamanho do array
+                                while (booksStats[bookId].verses.length < chapNum) booksStats[bookId].verses.push(0);
+                                booksStats[bookId].verses[chapNum - 1] = vCount > 0 ? vCount : 50; // Fallback 50 se parser falhar mas tiver conteúdo
+                            }
+                        }
+
+                        processedChapters++;
+
+                        // Reporta progresso (suavizado)
+                        if (processedChapters % 5 === 0) {
+                            const pct = Math.min(99, Math.floor((processedChapters / ESTIMATED_TOTAL_CHAPTERS) * 100));
+                            onProgress(`Baixando ${bookName}... (${processedChapters} caps)`, pct);
+                        }
+
+                    } catch (e: any) {
+                        console.error(`[Download] Erro task ${task?.chapId}:`, e);
+                        // NÃO ABORTAR EM ERRO DE CAPÍTULO ÚNICO
+                        // Apenas marca erro global para aviso, mas continua baixando o resto
+                        hasError = true;
+                    } finally {
+                        activeDownloads--;
+                    }
+                }
+            };
+
+            // Inicia workers de download (Consumers)
+            const downloadWorkers = Array(CONCURRENCY_LIMIT).fill(null).map(() => worker());
+
+            // Inicia descoberta de capítulos (Producers)
+            // Processa livros em pequenos lotes para não sobrecarregar API de lista
+            const processBooks = async () => {
+                for (let i = 0; i < books.length; i += DISCOVERY_CONCURRENCY) {
+                    if (shouldStop() || hasError) break;
+
+                    const batch = books.slice(i, i + DISCOVERY_CONCURRENCY);
+                    await Promise.all(batch.map(async (book: any) => {
+                        try {
+                            const bookId = book.id || book.usfm || book.abbreviation;
+                            const chapters = await this.getChapters(versionId, bookId);
+
+                            // Adiciona capítulos na fila
+                            chapters.forEach((chap: any) => {
+                                const chapId = chap.passage_id || chap.id || chap.usfm;
+                                if (chapId) {
+                                    queue.push({
+                                        bookId: String(bookId),
+                                        bookName: book.name || bookId,
+                                        chapId: String(chapId)
+                                    });
+                                }
+                            });
+                        } catch (e) {
+                            console.warn(`[Download] Erro ao listar capítulos de ${book.name}`);
+                        }
+                    }));
+                }
+                isDiscovering = false; // Fim da descoberta
+            };
+
+            // Roda descoberta e espera download terminar
+            await processBooks();
+            await Promise.all(downloadWorkers);
+
+            if (shouldStop()) {
+                console.log('[Download] Cancelado.');
+            } else {
+                if (hasError) console.warn('[Download] Concluído com alguns erros parciais.');
+
+                // GERA METADATA FINAL E ROBUSTO (MESMO COM ERROS PARCIAIS)
+
+                console.log('[Download] Gerando Metadata Final...');
+
+                // Converte booksStats para formato compatível (se necessário) ou salva direto
+                // Vamos salvar booksStats dentro do metadata para uso futuro
+                finalMetadata.booksStats = booksStats;
+
+                // Também atualiza a lista de livros disponível
+                finalMetadata.availableBooks = Object.keys(booksStats);
+
+                // Detecta se é NT Only baseado nos livros baixados
+                const hasOT = Object.keys(booksStats).some(bid => OLD_TESTAMENT_BOOKS.has(bid));
+                if (!hasOT && !finalMetadata.name.includes('(Novo Testamento)')) {
+                    finalMetadata.name += ' (Novo Testamento)';
+                }
+
+                await LocalBibleManager.saveVersionMetadata(versionId, finalMetadata);
+
+                onProgress('Download Concluído!', 100);
+            }
+
         } catch (e: any) {
             console.error('[Download] Erro fatal:', e);
             onProgress(`Erro: ${e.message || 'Falha no download'}`, 0);

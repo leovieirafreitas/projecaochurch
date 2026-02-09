@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"><SOAP-ENV:Body SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:NS1="urn:ModSBTBUnit-ISBTB_WS"><NS1:GetVersionListResponse><return xsi:type="xsd:string">&lt;?xml version="1.0" encoding="utf-8" standalone="yes"?&gt;
+&lt;versionlist&gt;
+	&lt;version num="1" code="ACF" language="1" langcode="pt"&gt;Almeida Corrigida Revisada Fiel ao Texto Original&lt;/version&gt;
+	&lt;version num="2" code="KJV" language="2" langcode="en"&gt;King James Version (Authorised Version)&lt;/version&gt;
+&lt;/versionlist&gt;</return></NS1:GetVersionListResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>

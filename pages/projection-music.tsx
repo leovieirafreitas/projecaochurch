@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { useProjectionSync } from '../hooks/useProjectionSync';
+import { StorageHelper } from '../lib/storage-helper';
 
 // --- CONFIGURAÇÃO GLOBAL ---
 const CHANNEL_NAME = 'music_channel';
@@ -57,8 +58,17 @@ export default function MusicProjectionPage() {
 
 
     // --- SINCRONIZAÇÃO UNIFICADA (Supabase + Broadcast) ---
-    useProjectionSync('receiver', (data: any) => {
+    useProjectionSync('receiver', async (data: any) => {
         if (!data) return;
+
+        // Tenta recuperar background do IndexedDB se estiver faltando no payload
+        if (data.style && (!data.style.backgroundImage || data.style.backgroundImage.length < 100)) {
+            const indexedBg = await StorageHelper.getBackground('music_settings');
+            if (indexedBg) {
+                data.style = { ...data.style, backgroundImage: indexedBg };
+            }
+        }
+
         setState((prev: any) => {
             // Verifica se o dado é realmente novo (deep compare simplificado)
             if (JSON.stringify(prev) === JSON.stringify({ ...prev, ...data })) return prev;
@@ -112,6 +122,50 @@ export default function MusicProjectionPage() {
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Lora:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;700;900&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet" />
                 {/* CSS DAS ANIMAÇÕES */}
                 <style>{`
+                    @font-face {
+                        font-family: 'Wondra';
+                        src: url('/fonts/Wondra.woff') format('woff'),
+                                url('/fonts/Wondra.ttf') format('truetype');
+                        font-weight: normal;
+                        font-style: normal;
+                        font-display: block;
+                    }
+
+                    @font-face {
+                        font-family: 'Bigstage';
+                        src: url('/fonts/Bigstage.otf') format('opentype'),
+                                url('/fonts/Bigstage.ttf') format('truetype');
+                        font-weight: normal;
+                        font-style: normal;
+                        font-display: block;
+                    }
+
+                    @font-face {
+                        font-family: 'CSCalebMono';
+                        src: url('/fonts/CSCalebMono-Regular.otf') format('opentype'),
+                                url('/fonts/CSCalebMono-Regular.ttf') format('truetype');
+                        font-weight: normal;
+                        font-style: normal;
+                        font-display: block;
+                    }
+
+                    @font-face {
+                        font-family: 'NewBlackTypeface';
+                        src: url('/fonts/NewBlackTypeface-Regular.otf') format('opentype');
+                        font-weight: 400;
+                        font-style: normal;
+                        font-display: block;
+                    }
+
+                    @font-face {
+                        font-family: 'SunnySide';
+                        src: url('/fonts/SunnySide-Regular.otf') format('opentype'),
+                                url('/fonts/SunnySide-Regular.ttf') format('truetype');
+                        font-weight: normal;
+                        font-style: normal;
+                        font-display: block;
+                    }
+
                     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                     .animate-fade {
                         animation: fadeIn 0.6s ease-out forwards;
@@ -148,7 +202,9 @@ export default function MusicProjectionPage() {
                     overflow: 'hidden'
                 }}
             >
-                {bgImage && <img src={bgImage} alt="bg" className="absolute inset-0 w-full h-full object-cover" />}
+                {(bgImage && bgImage !== 'INDEXED_DB') && (
+                    <img src={bgImage} alt="bg" className="absolute inset-0 w-full h-full object-cover" />
+                )}
 
                 {currentText && (
                     <>

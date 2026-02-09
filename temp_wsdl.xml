@@ -1,0 +1,305 @@
+<?xml version="1.0"?>
+<definitions xmlns="http://schemas.xmlsoap.org/wsdl/" xmlns:xs="http://www.w3.org/2001/XMLSchema" name="ISBTB_WSservice" targetNamespace="https://abibliasagrada.com.br/" xmlns:tns="https://abibliasagrada.com.br/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/">
+  <message name="Cod3ToBookCode0Request">
+    <part name="Cod3Letter" type="xs:string"/>
+  </message>
+  <message name="Cod3ToBookCode0Response">
+    <part name="return" type="xs:int"/>
+  </message>
+  <message name="Cod2ToBookCode1Request">
+    <part name="Cod2Letter" type="xs:string"/>
+  </message>
+  <message name="Cod2ToBookCode1Response">
+    <part name="return" type="xs:int"/>
+  </message>
+  <message name="BookNameToCode2Request">
+    <part name="BookName" type="xs:string"/>
+  </message>
+  <message name="BookNameToCode2Response">
+    <part name="return" type="xs:int"/>
+  </message>
+  <message name="GetLanguageList3Request"/>
+  <message name="GetLanguageList3Response">
+    <part name="return" type="xs:string"/>
+  </message>
+  <message name="GetVersionsByLanguage4Request">
+    <part name="Language" type="xs:int"/>
+  </message>
+  <message name="GetVersionsByLanguage4Response">
+    <part name="return" type="xs:string"/>
+  </message>
+  <message name="GetVersionCode5Request">
+    <part name="Version3LetterCode" type="xs:string"/>
+  </message>
+  <message name="GetVersionCode5Response">
+    <part name="return" type="xs:int"/>
+  </message>
+  <message name="GetVersionList6Request"/>
+  <message name="GetVersionList6Response">
+    <part name="return" type="xs:string"/>
+  </message>
+  <message name="GetBookList7Request">
+    <part name="Version" type="xs:int"/>
+  </message>
+  <message name="GetBookList7Response">
+    <part name="return" type="xs:string"/>
+  </message>
+  <message name="GetCod3LetterList8Request"/>
+  <message name="GetCod3LetterList8Response">
+    <part name="return" type="xs:string"/>
+  </message>
+  <message name="GetCod2LetterList9Request">
+    <part name="Version" type="xs:int"/>
+  </message>
+  <message name="GetCod2LetterList9Response">
+    <part name="return" type="xs:string"/>
+  </message>
+  <message name="GetVerse10Request">
+    <part name="Version" type="xs:int"/>
+    <part name="BookCode" type="xs:int"/>
+    <part name="Chapter" type="xs:int"/>
+    <part name="Verse" type="xs:int"/>
+  </message>
+  <message name="GetVerse10Response">
+    <part name="return" type="xs:string"/>
+  </message>
+  <message name="GetVerses11Request">
+    <part name="Version" type="xs:int"/>
+    <part name="BookCode" type="xs:int"/>
+    <part name="Chapter" type="xs:int"/>
+    <part name="IniVerse" type="xs:int"/>
+    <part name="EndVerse" type="xs:int"/>
+  </message>
+  <message name="GetVerses11Response">
+    <part name="return" type="xs:string"/>
+  </message>
+  <message name="GetTotalChapters12Request">
+    <part name="BookCode" type="xs:int"/>
+  </message>
+  <message name="GetTotalChapters12Response">
+    <part name="return" type="xs:int"/>
+  </message>
+  <message name="GetTotalVerses13Request">
+    <part name="Version" type="xs:int"/>
+    <part name="BookCode" type="xs:int"/>
+    <part name="Chapter" type="xs:int"/>
+  </message>
+  <message name="GetTotalVerses13Response">
+    <part name="return" type="xs:int"/>
+  </message>
+  <message name="SearchVerses14Request">
+    <part name="Version" type="xs:int"/>
+    <part name="Expression" type="xs:string"/>
+    <part name="AllWords" type="xs:boolean"/>
+    <part name="StrictSearch" type="xs:boolean"/>
+  </message>
+  <message name="SearchVerses14Response">
+    <part name="return" type="xs:string"/>
+  </message>
+  <portType name="ISBTB_WS">
+    <operation name="Cod3ToBookCode">
+      <input message="tns:Cod3ToBookCode0Request"/>
+      <output message="tns:Cod3ToBookCode0Response"/>
+    </operation>
+    <operation name="Cod2ToBookCode">
+      <input message="tns:Cod2ToBookCode1Request"/>
+      <output message="tns:Cod2ToBookCode1Response"/>
+    </operation>
+    <operation name="BookNameToCode">
+      <input message="tns:BookNameToCode2Request"/>
+      <output message="tns:BookNameToCode2Response"/>
+    </operation>
+    <operation name="GetLanguageList">
+      <input message="tns:GetLanguageList3Request"/>
+      <output message="tns:GetLanguageList3Response"/>
+    </operation>
+    <operation name="GetVersionsByLanguage">
+      <input message="tns:GetVersionsByLanguage4Request"/>
+      <output message="tns:GetVersionsByLanguage4Response"/>
+    </operation>
+    <operation name="GetVersionCode">
+      <input message="tns:GetVersionCode5Request"/>
+      <output message="tns:GetVersionCode5Response"/>
+    </operation>
+    <operation name="GetVersionList">
+      <input message="tns:GetVersionList6Request"/>
+      <output message="tns:GetVersionList6Response"/>
+    </operation>
+    <operation name="GetBookList">
+      <input message="tns:GetBookList7Request"/>
+      <output message="tns:GetBookList7Response"/>
+    </operation>
+    <operation name="GetCod3LetterList">
+      <input message="tns:GetCod3LetterList8Request"/>
+      <output message="tns:GetCod3LetterList8Response"/>
+    </operation>
+    <operation name="GetCod2LetterList">
+      <input message="tns:GetCod2LetterList9Request"/>
+      <output message="tns:GetCod2LetterList9Response"/>
+    </operation>
+    <operation name="GetVerse">
+      <input message="tns:GetVerse10Request"/>
+      <output message="tns:GetVerse10Response"/>
+    </operation>
+    <operation name="GetVerses">
+      <input message="tns:GetVerses11Request"/>
+      <output message="tns:GetVerses11Response"/>
+    </operation>
+    <operation name="GetTotalChapters">
+      <input message="tns:GetTotalChapters12Request"/>
+      <output message="tns:GetTotalChapters12Response"/>
+    </operation>
+    <operation name="GetTotalVerses">
+      <input message="tns:GetTotalVerses13Request"/>
+      <output message="tns:GetTotalVerses13Response"/>
+    </operation>
+    <operation name="SearchVerses">
+      <input message="tns:SearchVerses14Request"/>
+      <output message="tns:SearchVerses14Response"/>
+    </operation>
+  </portType>
+  <binding name="ISBTB_WSbinding" type="tns:ISBTB_WS">
+    <binding xmlns="http://schemas.xmlsoap.org/wsdl/soap/" style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <operation name="Cod3ToBookCode">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#Cod3ToBookCode" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="Cod2ToBookCode">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#Cod2ToBookCode" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="BookNameToCode">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#BookNameToCode" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetLanguageList">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetLanguageList" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetVersionsByLanguage">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetVersionsByLanguage" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetVersionCode">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetVersionCode" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetVersionList">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetVersionList" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetBookList">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetBookList" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetCod3LetterList">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetCod3LetterList" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetCod2LetterList">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetCod2LetterList" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetVerse">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetVerse" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetVerses">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetVerses" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetTotalChapters">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetTotalChapters" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="GetTotalVerses">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#GetTotalVerses" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+    <operation name="SearchVerses">
+      <operation xmlns="http://schemas.xmlsoap.org/wsdl/soap/" soapAction="urn:ModSBTBUnit-ISBTB_WS#SearchVerses" style="rpc"/>
+      <input>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </input>
+      <output>
+        <body xmlns="http://schemas.xmlsoap.org/wsdl/soap/" use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:ModSBTBUnit-ISBTB_WS"/>
+      </output>
+    </operation>
+  </binding>
+  <service name="ISBTB_WSservice">
+    <port name="ISBTB_WSPort" binding="tns:ISBTB_WSbinding">
+      <address xmlns="http://schemas.xmlsoap.org/wsdl/soap/" location="https://abibliasagrada.com.br/dlls/sbtb_ws.dll/soap/ISBTB_WS"/>
+    </port>
+  </service>
+</definitions>
+

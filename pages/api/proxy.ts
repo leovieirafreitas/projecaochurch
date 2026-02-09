@@ -11,8 +11,8 @@ export const config = {
     },
 };
 
-// SEGURANÇA: Chave vem do ENV agora
-const APP_KEY = process.env.YOUVERSION_API_KEY || '';
+// SEGURANÇA: Chave vem do ENV agora, com fallback para a chave padrão
+const APP_KEY = process.env.YOUVERSION_API_KEY || '8CIUKFa2HDqazT1Vu4P9kpZPZVVtZMpvZiGBzt3GDggWf3q7';
 const BASE_URL = 'https://api.youversion.com/v1';
 
 export default async function handler(req: any, res: any) {
