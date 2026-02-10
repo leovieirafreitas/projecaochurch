@@ -1425,6 +1425,55 @@ export default function BibleSearch() {
         };
     }, []);
 
+    // --- FAVORITES SYSTEM ---
+    const [sidebarTab, setSidebarTab] = useState<'bible' | 'favorites'>('bible');
+    const [favorites, setFavorites] = useState<{ id: string, ref: string, text: string, version: string }[]>([]);
+
+    useEffect(() => {
+        const saved = localStorage.getItem('projection_favorites');
+        if (saved) {
+            try {
+                setFavorites(JSON.parse(saved));
+            } catch (e) {
+                console.error('Error loading favorites:', e);
+            }
+        }
+    }, []);
+
+    const toggleFavorite = (v: { num: number, text: string }) => {
+        const bookObj = BIBLE_BOOKS_DATA[selectedBookId];
+        const bookName = bookObj ? bookObj.name : selectedBookId;
+        const chapNum = selectedChapterId.includes('.') ? selectedChapterId.split('.')[1] : selectedChapterId;
+        const verseRef = `${bookName} ${chapNum}:${v.num}`; // Ex: João 3:16
+
+        // Unique ID for the favorite (Version + Ref)
+        const favId = `${currentVersion}-${selectedBookId}-${selectedChapterId}-${v.num}`;
+
+        const exists = favorites.find(f => f.id === favId); // Check strictly by ID (Version Specific)
+
+        if (exists) {
+            const newFavs = favorites.filter(f => f.id !== favId);
+            setFavorites(newFavs);
+            localStorage.setItem('projection_favorites', JSON.stringify(newFavs));
+        } else {
+            const newFav = {
+                id: favId,
+                ref: verseRef,
+                text: v.text,
+                version: currentVersion
+            };
+            const newFavs = [...favorites, newFav];
+            setFavorites(newFavs);
+            localStorage.setItem('projection_favorites', JSON.stringify(newFavs));
+        }
+    };
+
+    const removeFavorite = (id: string) => {
+        const newFavs = favorites.filter(f => f.id !== id);
+        setFavorites(newFavs);
+        localStorage.setItem('projection_favorites', JSON.stringify(newFavs));
+    };
+
     return (
         <div className="h-screen bg-[#1a1a1a] text-white flex flex-col overflow-hidden font-sans select-none">
             <Head><title>Project Church</title></Head>
@@ -1433,178 +1482,279 @@ export default function BibleSearch() {
             <MenuBar />
 
             <div className="flex-1 flex overflow-hidden">
-                {/* COLUNA ESQUERDA FIXA (AGORA SÓ LISTA DE TEXTO) */}
+                {/* COLUNA ESQUERDA FIXA (LISTA DE TEXTO / FAVORITOS) */}
                 <div className="w-[450px] min-w-[350px] border-r border-[#333] flex flex-col bg-white text-black shrink-0 relative z-20 shadow-xl transition-all">
-                    <div className="p-3 bg-gray-100 border-b border-gray-300 flex justify-between items-center h-12 shrink-0 gap-2">
-                        <div className="font-bold text-base text-gray-800 truncate flex-1 min-w-[30%]">
-                            {BIBLE_BOOKS_DATA[selectedBookId]?.name} {selectedChapterId.split('.')[1] || ''}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0 max-w-[70%]">
-                            {/* CUSTOM DROPDOWN REDESIGNED START */}
-                            <div className="relative flex-1 min-w-0">
-                                <button
-                                    onClick={() => setIsVersionDropdownOpen(!isVersionDropdownOpen)}
-                                    className="w-full bg-white border border-gray-300 text-gray-700 text-[11px] font-bold uppercase rounded py-1 px-2 flex justify-between items-center hover:bg-gray-50 transition min-w-[140px]"
-                                    title="Selecione a Versão"
-                                >
-                                    <span className="truncate mr-2">
-                                        {(() => {
-                                            const v = versions.find(ver => ver.id === currentVersion);
-                                            if (!v) return currentVersion;
-                                            // Mapping Logic - SAFE ACCESS
-                                            const safeAbbr = (v.abbreviation || '').toUpperCase();
-                                            const safeId = String(v.id);
 
-                                            let fullName = VERSION_FULL_NAMES[safeAbbr] || VERSION_FULL_NAMES[safeId] || v.local_title || v.name || safeAbbr || safeId;
+                    {/* TABS HEADER */}
+                    <div className="flex border-b border-gray-300 bg-gray-50">
+                        <button
+                            onClick={() => setSidebarTab('bible')}
+                            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider text-center transition-colors ${sidebarTab === 'bible' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                        >
+                            Bíblia
+                        </button>
+                        <button
+                            onClick={() => setSidebarTab('favorites')}
+                            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider text-center transition-colors ${sidebarTab === 'favorites' ? 'bg-white text-orange-600 border-b-2 border-orange-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                        >
+                            <span className="flex items-center justify-center gap-1">
+                                Favoritos <span className="bg-gray-200 text-gray-600 px-1.5 rounded-full text-[9px]">{favorites.length}</span>
+                            </span>
+                        </button>
+                    </div>
 
-                                            // Override Specifics
-                                            if (safeId === 'PORARA') fullName = 'Almeida Revista e Atualizada (Novo Testamento)';
-                                            if (safeId === 'PORARC') fullName = 'Almeida Revista e Corrigida (Novo Testamento)';
-                                            if (safeId === 'PORACF') fullName = 'Almeida Corrigida Fiel';
-                                            if (safeId === 'PORBBS') fullName = 'Bíblia Sagrada (BBS)';
-                                            if (safeId === '129') fullName = 'Nova Versão Internacional';
-                                            if (safeId === '1967') fullName = 'O Livro';
-                                            if (safeId === '4360') fullName = 'Nova Versão Internacional (PT)';
-                                            if (safeId === '215') fullName = 'Almeida Corrigida Fiel (ACF- SBTB)';
+                    {/* CONTEÚDO DA TAB BÍBLIA */}
+                    {sidebarTab === 'bible' && (
+                        <>
+                            <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center h-12 shrink-0 gap-2">
+                                <div className="font-bold text-base text-gray-800 truncate flex-1 min-w-[30%]">
+                                    {BIBLE_BOOKS_DATA[selectedBookId]?.name} {selectedChapterId.split('.')[1] || ''}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 max-w-[70%]">
+                                    {/* CUSTOM DROPDOWN REDESIGNED START */}
+                                    <div className="relative flex-1 min-w-0">
+                                        <button
+                                            onClick={() => setIsVersionDropdownOpen(!isVersionDropdownOpen)}
+                                            className="w-full bg-white border border-gray-300 text-gray-700 text-[11px] font-bold uppercase rounded py-1 px-2 flex justify-between items-center hover:bg-gray-50 transition min-w-[140px]"
+                                            title="Selecione a Versão"
+                                        >
+                                            <span className="truncate mr-2">
+                                                {(() => {
+                                                    const v = versions.find(ver => ver.id === currentVersion);
+                                                    if (!v) return currentVersion;
+                                                    // Mapping Logic - SAFE ACCESS
+                                                    const safeAbbr = (v.abbreviation || '').toUpperCase();
+                                                    const safeId = String(v.id);
 
-                                            // Numeric fallback
-                                            if (!isNaN(Number(fullName))) {
-                                                if (safeAbbr) fullName = `${safeAbbr} (${safeId})`;
-                                                else fullName = `Versão ${safeId}`;
-                                            }
+                                                    let fullName = VERSION_FULL_NAMES[safeAbbr] || VERSION_FULL_NAMES[safeId] || v.local_title || v.name || safeAbbr || safeId;
 
-                                            return fullName;
-                                        })()}
-                                    </span>
-                                    <svg className={`w-3 h-3 text-gray-500 transition-transform ${isVersionDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
+                                                    // Override Specifics
+                                                    if (safeId === 'PORARA') fullName = 'Almeida Revista e Atualizada (Novo Testamento)';
+                                                    if (safeId === 'PORARC') fullName = 'Almeida Revista e Corrigida (Novo Testamento)';
+                                                    if (safeId === 'PORACF') fullName = 'Almeida Corrigida Fiel';
+                                                    if (safeId === 'PORBBS') fullName = 'Bíblia Sagrada (BBS)';
+                                                    if (safeId === '129') fullName = 'Nova Versão Internacional';
+                                                    if (safeId === '1967') fullName = 'O Livro';
+                                                    if (safeId === '4360') fullName = 'Nova Versão Internacional (PT)';
+                                                    if (safeId === '215') fullName = 'Almeida Corrigida Fiel (ACF- SBTB)';
 
-                                {/* DROPDOWN MENU OVERLAY */}
-                                {isVersionDropdownOpen && (
-                                    <>
-                                        <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsVersionDropdownOpen(false)}></div>
-                                        <div className="absolute top-full left-0 mt-1 w-[450px] bg-white border border-gray-300 shadow-2xl rounded-sm max-h-[600px] overflow-y-auto z-50 flex flex-col">
-
-                                            {/* GROUP 1: MOVED TO MAIN LIST */}
-
-                                            {/* GROUP 2: ALL VERSIONS (ONLINE/OFFLINE) */}
-                                            <div className="bg-gray-100 px-3 py-2 text-[10px] font-black text-gray-500 border-y border-gray-200 mt-0 sticky top-0">
-                                                VERSÕES DISPONÍVEIS
-                                            </div>
-                                            {(versions || [])
-                                                .filter((v, i, a) => v && v.id && String(v.id) !== '1967' && a.findIndex(t => String(t.id) === String(v.id)) === i)
-                                                .map(v => {
-                                                    try {
-                                                        const isInstalled = (downloadedVersions || []).includes(String(v.id));
-
-                                                        // Safe Access
-                                                        const safeAbbr = (v.abbreviation || '').toUpperCase();
-                                                        const safeName = v.name || '';
-                                                        const safeLocalTitle = v.local_title || '';
-                                                        const safeId = String(v.id);
-
-                                                        // Name Logic
-                                                        let fullName = VERSION_FULL_NAMES[safeAbbr] || VERSION_FULL_NAMES[safeId] || safeLocalTitle || safeName || safeAbbr || safeId;
-
-                                                        // Specific Overrides
-                                                        if (safeId === 'PORARA') fullName = 'Almeida Revista e Atualizada (Novo Testamento)';
-                                                        if (safeId === 'PORARC') fullName = 'Almeida Revista e Corrigida (Novo Testamento)';
-                                                        if (safeId === 'PORACF') fullName = 'Almeida Corrigida Fiel';
-                                                        if (safeId === 'PORBBS') fullName = 'Bíblia Sagrada (BBS)';
-                                                        if (safeId === '129') fullName = 'Nova Versão Internacional';
-                                                        if (safeId === '1967') fullName = 'O Livro';
-                                                        if (safeId === '4360') fullName = 'Nova Versão Internacional (PT)';
-                                                        if (safeId === '215') fullName = 'Almeida Corrigida Fiel (ACF- SBTB)';
-
-                                                        // Fallback for Numeric Names
-                                                        if (!isNaN(Number(fullName))) {
-                                                            const tryAbbr = VERSION_FULL_NAMES[safeAbbr];
-                                                            if (tryAbbr) {
-                                                                fullName = tryAbbr;
-                                                            } else if (safeAbbr) {
-                                                                fullName = `${safeAbbr} (${safeId})`;
-                                                            } else {
-                                                                fullName = `Versão ${safeId}`;
-                                                            }
-                                                        }
-
-                                                        const isDownloadingThis = downloadStatus.downloading && downloadStatus.currentId === v.id;
-
-                                                        return (
-                                                            <div
-                                                                key={v.id}
-                                                                onClick={() => {
-                                                                    setCurrentVersion(v.id);
-                                                                    localStorage.setItem('bible_version', v.id);
-                                                                    setIsVersionDropdownOpen(false);
-                                                                }}
-                                                                className={`px-3 py-2 text-left text-[11px] font-bold uppercase transition border-b border-gray-100 flex justify-between items-center group cursor-pointer
-                                                                ${currentVersion === v.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                            >
-                                                                <span>{fullName}</span>
-                                                                <div className="flex items-center gap-2">
-                                                                    {isInstalled && <span className="text-green-500 font-bold text-xs bg-green-100 px-1 rounded">INSTALADA ✓</span>}
-
-                                                                    {!isInstalled && (
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                handleDownloadVersion(v.id);
-                                                                            }}
-                                                                            disabled={downloadStatus.downloading}
-                                                                            className={`p-1.5 rounded-full hover:bg-gray-200 group-hover:block transition-all ${isDownloadingThis ? 'block' : 'text-gray-400 opacity-60 hover:text-green-600 hover:opacity-100'}`}
-                                                                            title="Baixar para Offline"
-                                                                        >
-                                                                            {isDownloadingThis ? (
-                                                                                <span className="text-[9px] font-mono text-blue-600 animate-pulse">{Math.round(downloadStatus.progress)}%</span>
-                                                                            ) : (
-                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                                                            )}
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    } catch (err) {
-                                                        return null;
+                                                    // Numeric fallback
+                                                    if (!isNaN(Number(fullName))) {
+                                                        if (safeAbbr) fullName = `${safeAbbr} (${safeId})`;
+                                                        else fullName = `Versão ${safeId}`;
                                                     }
-                                                })}
-                                        </div>
-                                    </>
+
+                                                    return fullName;
+                                                })()}
+                                            </span>
+                                            <svg className={`w-3 h-3 text-gray-500 transition-transform ${isVersionDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+
+                                        {/* DROPDOWN MENU OVERLAY */}
+                                        {isVersionDropdownOpen && (
+                                            <>
+                                                <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsVersionDropdownOpen(false)}></div>
+                                                <div className="absolute top-full left-0 mt-1 w-[450px] bg-white border border-gray-300 shadow-2xl rounded-sm max-h-[600px] overflow-y-auto z-50 flex flex-col">
+
+                                                    {/* GROUP 2: ALL VERSIONS (ONLINE/OFFLINE) */}
+                                                    <div className="bg-gray-100 px-3 py-2 text-[10px] font-black text-gray-500 border-y border-gray-200 mt-0 sticky top-0">
+                                                        VERSÕES DISPONÍVEIS
+                                                    </div>
+                                                    {(versions || [])
+                                                        .filter((v, i, a) => v && v.id && String(v.id) !== '1967' && a.findIndex(t => String(t.id) === String(v.id)) === i)
+                                                        .map(v => {
+                                                            try {
+                                                                const isInstalled = (downloadedVersions || []).includes(String(v.id));
+
+                                                                // Safe Access
+                                                                const safeAbbr = (v.abbreviation || '').toUpperCase();
+                                                                const safeName = v.name || '';
+                                                                const safeLocalTitle = v.local_title || '';
+                                                                const safeId = String(v.id);
+
+                                                                // Name Logic
+                                                                let fullName = VERSION_FULL_NAMES[safeAbbr] || VERSION_FULL_NAMES[safeId] || safeLocalTitle || safeName || safeAbbr || safeId;
+
+                                                                // Specific Overrides
+                                                                if (safeId === 'PORARA') fullName = 'Almeida Revista e Atualizada (Novo Testamento)';
+                                                                if (safeId === 'PORARC') fullName = 'Almeida Revista e Corrigida (Novo Testamento)';
+                                                                if (safeId === 'PORACF') fullName = 'Almeida Corrigida Fiel';
+                                                                if (safeId === 'PORBBS') fullName = 'Bíblia Sagrada (BBS)';
+                                                                if (safeId === '129') fullName = 'Nova Versão Internacional';
+                                                                if (safeId === '1967') fullName = 'O Livro';
+                                                                if (safeId === '4360') fullName = 'Nova Versão Internacional (PT)';
+                                                                if (safeId === '215') fullName = 'Almeida Corrigida Fiel (ACF- SBTB)';
+
+                                                                // Fallback for Numeric Names
+                                                                if (!isNaN(Number(fullName))) {
+                                                                    const tryAbbr = VERSION_FULL_NAMES[safeAbbr];
+                                                                    if (tryAbbr) {
+                                                                        fullName = tryAbbr;
+                                                                    } else if (safeAbbr) {
+                                                                        fullName = `${safeAbbr} (${safeId})`;
+                                                                    } else {
+                                                                        fullName = `Versão ${safeId}`;
+                                                                    }
+                                                                }
+
+                                                                const isDownloadingThis = downloadStatus.downloading && downloadStatus.currentId === v.id;
+
+                                                                return (
+                                                                    <div
+                                                                        key={v.id}
+                                                                        onClick={() => {
+                                                                            setCurrentVersion(v.id);
+                                                                            localStorage.setItem('bible_version', v.id);
+                                                                            setIsVersionDropdownOpen(false);
+                                                                        }}
+                                                                        className={`px-3 py-2 text-left text-[11px] font-bold uppercase transition border-b border-gray-100 flex justify-between items-center group cursor-pointer
+                                                                        ${currentVersion === v.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                                    >
+                                                                        <span>{fullName}</span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            {isInstalled && <span className="text-green-500 font-bold text-xs bg-green-100 px-1 rounded">INSTALADA ✓</span>}
+
+                                                                            {!isInstalled && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleDownloadVersion(v.id);
+                                                                                    }}
+                                                                                    disabled={downloadStatus.downloading}
+                                                                                    className={`p-1.5 rounded-full hover:bg-gray-200 group-hover:block transition-all ${isDownloadingThis ? 'block' : 'text-gray-400 opacity-60 hover:text-green-600 hover:opacity-100'}`}
+                                                                                    title="Baixar para Offline"
+                                                                                >
+                                                                                    {isDownloadingThis ? (
+                                                                                        <span className="text-[9px] font-mono text-blue-600 animate-pulse">{Math.round(downloadStatus.progress)}%</span>
+                                                                                    ) : (
+                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                                                    )}
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            } catch (err) {
+                                                                return null;
+                                                            }
+                                                        })}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-0 scrollbar-thin scrollbar-thumb-gray-400">
+                                {previewVerses.length > 0 ? (
+                                    previewVerses.map(v => {
+                                        const bookObj = BIBLE_BOOKS_DATA[selectedBookId];
+                                        const bookName = bookObj ? bookObj.name : selectedBookId;
+                                        const chapNum = selectedChapterId.includes('.') ? selectedChapterId.split('.')[1] : selectedChapterId;
+                                        const verseRef = `${bookName} ${chapNum}:${v.num}`;
+
+                                        const isSelected = activeSlide?.ref === verseRef;
+
+                                        // Check Favorites
+                                        const favId = `${currentVersion}-${selectedBookId}-${selectedChapterId}-${v.num}`;
+                                        const isFavorite = favorites.some(f => f.id === favId);
+
+                                        return (
+                                            <div
+                                                key={v.num}
+                                                className={`flex gap-2 px-3 py-2 border-b border-gray-100 items-start group relative transition-colors ${isSelected ? 'bg-blue-600' : 'hover:bg-gray-50'}`}
+                                            >
+                                                <div
+                                                    className="flex-1 flex gap-2 cursor-pointer items-start"
+                                                    onClick={() => projectVerse(v)}
+                                                >
+                                                    <span className={`text-xs font-bold w-6 pt-0.5 text-right shrink-0 ${isSelected ? 'text-white' : 'text-gray-400 group-hover:text-blue-500'}`}>{v.num}</span>
+                                                    <p className={`text-sm leading-snug flex-1 ${isSelected ? 'text-white font-semibold' : 'text-gray-600'}`}>{v.text}</p>
+                                                </div>
+
+                                                {/* FAVORITE BUTTON - LADO DIREITO, SEMPRE VISÍVEL */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleFavorite(v);
+                                                    }}
+                                                    className={`mt-0.5 p-1 rounded-full transition-all shrink-0 ${isFavorite ? 'text-orange-500 hover:text-orange-600' : 'text-gray-400 hover:text-orange-500'}`}
+                                                    title={isFavorite ? "Remover Favorito" : "Adicionar Favorito"}
+                                                >
+                                                    <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="p-4 text-center text-gray-400 text-xs">Carregando versículos...</div>
                                 )}
                             </div>
-                        </div>
-                    </div>
+                        </>
+                    )}
 
-                    <div className="flex-1 overflow-y-auto p-0 scrollbar-thin scrollbar-thumb-gray-400">
-                        {previewVerses.length > 0 ? (
-                            previewVerses.map(v => {
-                                // FIXED: Compare by Reference (Attempt 2)
-                                const bookObj = BIBLE_BOOKS_DATA[selectedBookId];
-                                const bookName = bookObj ? bookObj.name : selectedBookId;
-                                const chapNum = selectedChapterId.includes('.') ? selectedChapterId.split('.')[1] : selectedChapterId;
-                                const verseRef = `${bookName} ${chapNum}:${v.num}`;
-                                // Robust comparison: Check exact ref OR suffix match (fallback for edge cases)
-                                const isSelected = activeSlide?.ref === verseRef || (activeSlide?.ref && activeSlide.ref.endsWith(`:${v.num}`) && activeSlide.ref.includes(bookName));
-
-                                return (
-                                    <div
-                                        key={v.num}
-                                        onClick={() => projectVerse(v)}
-                                        className={`flex gap-2 px-3 py-2 border-b border-gray-100 cursor-pointer hover:bg-blue-50 transition items-start group ${isSelected ? 'bg-blue-500' : ''}`}
-                                    >
-                                        <span className={`text-xs font-bold w-6 pt-0.5 text-right shrink-0 ${isSelected ? 'text-white' : 'text-gray-400 group-hover:text-blue-500'}`}>{v.num}</span>
-                                        <p className={`text-sm leading-snug ${isSelected ? 'text-white font-semibold' : 'text-gray-600'}`}>{v.text}</p>
+                    {/* CONTEÚDO DA TAB FAVORITOS */}
+                    {sidebarTab === 'favorites' && (
+                        <div className="flex-1 overflow-y-auto p-0 scrollbar-thin scrollbar-thumb-gray-400 bg-gray-50">
+                            {favorites.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full p-8 text-center text-gray-400 opacity-60">
+                                    <svg className="w-12 h-12 mb-4 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
+                                    <p className="text-sm font-medium">Nenhum versículo favorito.</p>
+                                    <p className="text-xs mt-2">Clique na estrela ao lado dos versículos para adicionar.</p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-gray-200">
+                                    <div className="bg-orange-50 px-4 py-2 border-b border-orange-100 text-[10px] font-bold text-orange-600 uppercase tracking-widest sticky top-0">
+                                        Versículos do Dia ({favorites.length})
                                     </div>
-                                );
-                            })
-                        ) : (
-                            <div className="p-4 text-center text-gray-400 text-sm">Carregando...</div>
-                        )}
-                    </div>
+                                    {favorites.map((fav) => {
+                                        // Helper to get version name
+                                        const getVerName = (vid: string) => {
+                                            const v = versions.find(ver => String(ver.id) === String(vid));
+                                            if (!v) return vid;
+                                            return (v.abbreviation || v.name || vid).toUpperCase();
+                                        };
 
+                                        return (
+                                            <div key={fav.id} className="bg-white p-3 hover:bg-orange-50/50 transition-colors group relative flex items-start gap-3">
+                                                {/* REMOVE BUTTON */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        removeFavorite(fav.id);
+                                                    }}
+                                                    className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-500 rounded-full hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all z-10"
+                                                    title="Remover dos favoritos"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+
+                                                <div
+                                                    className="flex-1 cursor-pointer"
+                                                    onClick={() => {
+                                                        setActiveSlide({ text: fav.text, ref: fav.ref, copyright: '' });
+                                                        setIsProjectionVisible(true);
+                                                    }}
+                                                >
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <p className="text-xs font-bold text-orange-600">{fav.ref}</p>
+                                                        <span className="text-[9px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200">
+                                                            {getVerName(fav.version)}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-700 leading-snug line-clamp-3">{fav.text}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
                     {/* Sticky Copyright Footer */}
                     {(getVersionCopyright(currentVersion) || currentCopyright) && (
                         <div className="bg-gray-100 border-t border-gray-300 px-3 py-2 text-[10px] text-gray-600 text-center leading-tight shrink-0 font-medium select-none shadow-[0_-2px_4px_rgba(0,0,0,0.05)] relative z-10">
@@ -1718,25 +1868,15 @@ export default function BibleSearch() {
                             </div>
 
                             <div className="flex items-center gap-4">
-                                <button
-                                    onClick={() => setIsProjectionVisible(!isProjectionVisible)}
-                                    title="Atalhos: B ou Esc = Pausar/Retomar | ← → = Trocar Slides"
-                                    className={`
-                                        h-7 px-4 rounded-md text-xs font-bold uppercase tracking-wide transition-all shadow-sm flex items-center justify-center min-w-[130px]
-                                        ${isProjectionVisible
-                                            ? 'bg-red-600 hover:bg-red-500 text-white'
-                                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'}
-                                    `}
-                                >
-                                    {isProjectionVisible ? 'Parar Projeção' : 'Retomar Projeção'}
-                                </button>
+                                {/* Button Moved to Floating Overlay */}
                             </div>
                         </div>
 
 
 
-                        {/* ÁREA DO PROJETOR SIMULADA (WYSIWYG) */}
                         <div className="flex-1 flex items-center justify-center p-4 overflow-hidden bg-[#0a0a0a]">
+
+
                             {activeSlide && isProjectionVisible ? (
                                 <div className="relative w-full h-full flex items-center justify-center overflow-hidden bg-black/50">
                                     {/* CONTROLE DE ZOOM DO PREVIEW (FIXO) */}
@@ -1905,33 +2045,65 @@ export default function BibleSearch() {
                                         </div>
                                     </div>
 
-                                    {/* CONTROLES DE NAVEGAÇÃO DE SLIDES (OVERLAY) */}
-                                    {slideParts.length > 1 && (
-                                        <div
-                                            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 z-50 bg-black/80 p-2 rounded-full border border-gray-700 shadow-xl backdrop-blur"
-                                            onMouseDown={(e) => e.stopPropagation()}
+                                    {/* UNIFIED FLOATING CONTROL BAR (Bottom Center) */}
+                                    <div
+                                        className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 z-50 bg-[#111]/90 p-1.5 rounded-full border border-gray-700 shadow-2xl backdrop-blur-md transition-all duration-300 ring-1 ring-white/10"
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                    >
+                                        {/* SLIDE CONTROLS (Only visible if multiple slides) */}
+                                        {slideParts.length > 1 && (
+                                            <>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); prevPart(); }}
+                                                    disabled={currentPartIndex === 0}
+                                                    className={`w-8 h-8 flex items-center justify-center rounded-full text-white transition-all ${currentPartIndex === 0 ? 'opacity-20 cursor-not-allowed' : 'hover:bg-white/10 active:bg-white/20'}`}
+                                                    title="Slide Anterior (Seta Esquerda)"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                                                </button>
+
+                                                <span className="text-white/90 text-[10px] font-bold font-mono min-w-[32px] text-center select-none tracking-wider">
+                                                    {currentPartIndex + 1}/{slideParts.length}
+                                                </span>
+
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); nextPart(); }}
+                                                    disabled={currentPartIndex === slideParts.length - 1}
+                                                    className={`w-8 h-8 flex items-center justify-center rounded-full text-white transition-all ${currentPartIndex === slideParts.length - 1 ? 'opacity-20 cursor-not-allowed' : 'hover:bg-white/10 active:bg-white/20'}`}
+                                                    title="Próximo Slide (Seta Direita)"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                                                </button>
+
+                                                {/* DIVIDER */}
+                                                <div className="w-[1px] h-4 bg-gray-700 mx-1"></div>
+                                            </>
+                                        )}
+
+                                        {/* PROJECTION TOGGLE (Always Visible, Integrated Style) */}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setIsProjectionVisible(!isProjectionVisible); }}
+                                            className={`
+                                                flex items-center gap-2 px-3 pl-2 h-8 rounded-full transition-all duration-300 border
+                                                ${isProjectionVisible
+                                                    ? 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500 hover:text-white'
+                                                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500 hover:text-white'}
+                                            `}
+                                            title={isProjectionVisible ? "Parar Projeção (Esc)" : "Projetar (Esc)"}
                                         >
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); prevPart(); }}
-                                                disabled={currentPartIndex === 0}
-                                                className={`p-2 rounded-full text-white transition-colors ${currentPartIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-blue-600 cursor-pointer'}`}
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-                                            </button>
-
-                                            <span className="text-white text-xs font-bold font-mono min-w-[40px] text-center select-none">
-                                                {currentPartIndex + 1} / {slideParts.length}
-                                            </span>
-
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); nextPart(); }}
-                                                disabled={currentPartIndex === slideParts.length - 1}
-                                                className={`p-2 rounded-full text-white transition-colors ${currentPartIndex === slideParts.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-blue-600 cursor-pointer'}`}
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-                                            </button>
-                                        </div>
-                                    )}
+                                            {isProjectionVisible ? (
+                                                <>
+                                                    <div className="w-2 h-2 rounded bg-current shadow-[0_0_8px_currentColor] animate-pulse"></div>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest leading-none">PARAR</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-3 h-3 fill-current drop-shadow-[0_0_5px_currentColor]" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest leading-none">PROJETAR</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="text-gray-700 flex flex-col items-center select-none w-full h-full justify-center bg-[#111]">
@@ -2095,6 +2267,6 @@ export default function BibleSearch() {
             <div className="bg-white border-t-2 border-gray-400 px-4 py-2 text-[13px] text-gray-700 font-semibold select-none shadow-[0_-4px_8px_rgba(0,0,0,0.15)] w-full flex items-center justify-center h-9 shrink-0 z-50">
                 Digite uma tecla para localizar rapidamente o versículo
             </div>
-        </div >
+        </div>
     );
 }

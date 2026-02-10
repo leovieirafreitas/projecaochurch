@@ -1,14 +1,14 @@
 export const BOOK_GROUPS = [
-    { type: 'Pentateuco', color: 'bg-orange-600', books: ['GEN', 'EXO', 'LEV', 'NUM', 'DEU'] },
-    { type: 'Históricos', color: 'bg-amber-600', books: ['JOS', 'JDG', 'RUT', '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 'EZR', 'NEH', 'EST'] },
-    { type: 'Poéticos', color: 'bg-rose-600', books: ['JOB', 'PSA', 'PRO', 'ECC', 'SNG'] },
-    { type: 'Profetas Maiores', color: 'bg-purple-600', books: ['ISA', 'JER', 'LAM', 'EZK', 'DAN'] },
-    { type: 'Profetas Menores', color: 'bg-fuchsia-600', books: ['HOS', 'JOL', 'AMO', 'OBA', 'JON', 'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL'] },
-    { type: 'Evangelhos', color: 'bg-blue-600', books: ['MAT', 'MRK', 'LUK', 'JHN'] },
-    { type: 'Histórico NT', color: 'bg-cyan-600', books: ['ACT'] },
-    { type: 'Cartas Paulo', color: 'bg-emerald-600', books: ['ROM', '1CO', '2CO', 'GAL', 'EPH', 'PHP', 'COL', '1TH', '2TH', '1TI', '2TI', 'TIT', 'PHM'] },
-    { type: 'Cartas Gerais', color: 'bg-teal-600', books: ['HEB', 'JAS', '1PE', '2PE', '1JN', '2JN', '3JN', 'JUD'] },
-    { type: 'Revelação', color: 'bg-lime-600', books: ['REV'] },
+    { type: 'Pentateuco', color: 'bg-zinc-800', books: ['GEN', 'EXO', 'LEV', 'NUM', 'DEU'] },
+    { type: 'Históricos', color: 'bg-zinc-800', books: ['JOS', 'JDG', 'RUT', '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 'EZR', 'NEH', 'EST'] },
+    { type: 'Poéticos', color: 'bg-zinc-800', books: ['JOB', 'PSA', 'PRO', 'ECC', 'SNG'] },
+    { type: 'Profetas Maiores', color: 'bg-zinc-800', books: ['ISA', 'JER', 'LAM', 'EZK', 'DAN'] },
+    { type: 'Profetas Menores', color: 'bg-zinc-800', books: ['HOS', 'JOL', 'AMO', 'OBA', 'JON', 'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL'] },
+    { type: 'Evangelhos', color: 'bg-zinc-800', books: ['MAT', 'MRK', 'LUK', 'JHN'] },
+    { type: 'Histórico NT', color: 'bg-zinc-800', books: ['ACT'] },
+    { type: 'Cartas Paulo', color: 'bg-zinc-800', books: ['ROM', '1CO', '2CO', 'GAL', 'EPH', 'PHP', 'COL', '1TH', '2TH', '1TI', '2TI', 'TIT', 'PHM'] },
+    { type: 'Cartas Gerais', color: 'bg-zinc-800', books: ['HEB', 'JAS', '1PE', '2PE', '1JN', '2JN', '3JN', 'JUD'] },
+    { type: 'Revelação', color: 'bg-zinc-800', books: ['REV'] },
 ];
 
 export const BIBLE_BOOKS_DATA: Record<string, { name: string, abbr: string, chapters: number }> = {

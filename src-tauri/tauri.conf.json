@@ -56,6 +56,10 @@
             },
             "externalBin": [],
             "icon": [
+                "icons/32x32.png",
+                "icons/128x128.png",
+                "icons/128x128@2x.png",
+                "icons/icon.icns",
                 "icons/icon.ico"
             ],
             "identifier": "com.chamachurch.biblia",
@@ -88,11 +92,26 @@
         },
         "windows": [
             {
+                "label": "main",
+                "visible": false,
                 "fullscreen": false,
                 "resizable": true,
                 "title": "Projection Church",
                 "width": 1280,
                 "height": 720
+            },
+            {
+                "label": "splashscreen",
+                "url": "splashscreen.html",
+                "visible": true,
+                "fullscreen": false,
+                "resizable": false,
+                "decorations": false,
+                "transparent": true,
+                "center": true,
+                "alwaysOnTop": true,
+                "width": 800,
+                "height": 600
             }
         ]
     }

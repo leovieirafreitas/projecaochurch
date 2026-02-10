@@ -721,10 +721,11 @@ fn main() {
                         // Prepare paths for clean URLs
                         let remote_path = static_path.join("remote.html");
                         let projection_path = static_path.join("projection.html");
+                        let projection_music_path = static_path.join("projection-music.html"); // ADDED
 
                         App::new()
-                            .wrap(actix_cors::Cors::permissive()) // Habilita CORS para todo mundo (Mobile/Web)
-                            .app_data(web::Data::from(app_state_for_actix.clone())) // Fix: Use Data::from to properly unwrap Arc
+                            .wrap(actix_cors::Cors::permissive())
+                            .app_data(web::Data::from(app_state_for_actix.clone()))
                             .service(ws_route)
                             .service(get_local_ip_endpoint)
                             .service(proxy_endpoint)
@@ -736,21 +737,27 @@ fn main() {
                                 web::resource("/api/status")
                                     .route(web::get().to(get_status_json_endpoint))
                                     .route(web::post().to(post_status_json_endpoint))
-                                    .route(web::head().to(|| async { HttpResponse::Ok().finish() })) // Support HEAD for connectivity checks
+                                    .route(web::head().to(|| async { HttpResponse::Ok().finish() }))
                             )
                             
-                            // Explicit Clean URL Routing
+                            // Explicit Clean URL Routing with Clone for each request (Safe for Actix)
                             .route("/remote", web::get().to(move || {
-                                af::NamedFile::open_async(remote_path.clone())
+                                let path = remote_path.clone(); // Clone inside handler
+                                async move { af::NamedFile::open_async(path).await }
                             }))
                             .route("/projection", web::get().to(move || {
-                                af::NamedFile::open_async(projection_path.clone())
+                                let path = projection_path.clone();
+                                async move { af::NamedFile::open_async(path).await }
+                            }))
+                            .route("/projection-music", web::get().to(move || {
+                                let path = projection_music_path.clone();
+                                async move { af::NamedFile::open_async(path).await }
                             }))
 
-                            
-                            // SERVE UPLOADS (AppData/uploads)
+                            // SERVE UPLOADS
                             .service(af::Files::new("/uploads", app_data_dir.clone().join("uploads")))
 
+                            // STATIC FILES FALLBACK
                             .service(af::Files::new("/", static_files).index_file("index.html"))
                     })
                     .bind(("0.0.0.0", port));
@@ -776,6 +783,25 @@ fn main() {
                      }
                 }
             }
+
+
+            // --- SPLASHSCREEN LOGIC (4 SECONDS) ---
+            let app_handle = app.handle();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(4));
+                println!("Splashscreen finished. Showing main window.");
+
+                // Show Main Window
+                if let Some(main_window) = app_handle.get_window("main") {
+                    let _ = main_window.show();
+                    let _ = main_window.set_focus();
+                }
+
+                // Close Splashscreen Window
+                if let Some(splash_window) = app_handle.get_window("splashscreen") {
+                    let _ = splash_window.close();
+                }
+            });
 
              Ok(())
         })
