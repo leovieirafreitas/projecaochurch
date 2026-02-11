@@ -26,6 +26,8 @@ base64 = "0.21"
 serde_urlencoded = "0.7" 
 tauri-plugin-sql = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1", features = ["sqlite"] } 
 winreg = "0.52" 
+aes-gcm = "0.10"
+rand = "0.8" 
 
 [features]
 # by default Tauri runs in production mode

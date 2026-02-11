@@ -15,6 +15,9 @@ use tokio::sync::broadcast;
 use std::time::{Duration, Instant};
 use tokio_stream::wrappers::BroadcastStream;
 
+mod security;
+
+
 // --- DATA STRUCTURES ---
 
 struct AppState {
@@ -265,7 +268,7 @@ async fn get_offline_versions_endpoint() -> impl Responder {
                                 let meta_path = entry.path().join("metadata.json");
                                 let mut display_name = name.clone();
                                 if meta_path.exists() {
-                                    if let Ok(content) = fs::read_to_string(meta_path) {
+                                    if let Ok(content) = security::read_file_secure(meta_path.to_string_lossy().to_string()) {
                                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
                                             if let Some(n) = json.get("name").and_then(|v| v.as_str()) {
                                                 display_name = n.to_string();
@@ -371,7 +374,7 @@ async fn get_offline_chapter_endpoint(path: web::Path<(String, String, String)>)
             let file_path = root.join(&version).join(&book).join(&filename);
             
             if file_path.exists() {
-                if let Ok(content) = fs::read_to_string(file_path) {
+                if let Ok(content) = security::read_file_secure(file_path.to_string_lossy().to_string()) {
                      return HttpResponse::Ok()
                         .content_type("application/json")
                         .body(content);
@@ -383,6 +386,16 @@ async fn get_offline_chapter_endpoint(path: web::Path<(String, String, String)>)
 }
 
 // --- TAURI COMMANDS ---
+
+#[tauri::command]
+fn read_file_secure(path: String) -> Result<String, String> {
+    security::read_file_secure(path)
+}
+
+#[tauri::command]
+fn write_file_secure(path: String, content: String) -> Result<(), String> {
+    security::write_file_secure(path, content)
+}
 
 #[tauri::command]
 async fn youversion_proxy(endpoint: String, params: Option<std::collections::HashMap<String, String>>) -> Result<serde_json::Value, String> {
@@ -661,6 +674,12 @@ fn get_system_fonts() -> Result<Vec<String>, String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![
+            youversion_proxy, get_songs, save_song, get_status, update_status, 
+            get_local_ip, ensure_projects_dir, open_projects_folder_native, 
+            quit_app, save_image_to_app_data, get_system_fonts,
+            read_file_secure, write_file_secure
+        ])
         .setup(|app| {
             // Resolver o caminho dos arquivos estáticos (resource)
             // Em dev, isso pode não funcionar bem se não copiarmos o 'out' manualmente, mas em bundle funciona.
@@ -806,19 +825,7 @@ fn main() {
              Ok(())
         })
         // .manage(AppState { projection: std::sync::Mutex::new(serde_json::json!({})) }) // Already managed in setup
-        .invoke_handler(tauri::generate_handler![
-            youversion_proxy,
-            get_songs,
-            save_song,
-            get_status, 
-            update_status,
-            get_local_ip,
-            ensure_projects_dir,
-            open_projects_folder_native,
-            save_image_to_app_data,
-            get_system_fonts,
-            quit_app
-        ])
+
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

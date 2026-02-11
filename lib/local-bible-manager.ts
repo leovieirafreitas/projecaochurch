@@ -17,8 +17,16 @@ const getTauri = () => {
 export class LocalBibleManager {
     private static cache: Map<string, any> = new Map();
 
-    private static async getDocRoot(tauri: any) {
-        // User downloads go to Documents (writable, user-accessible)
+    // Novo Root: Direto na pasta de recursos da instalação (onde ficam as bíblias embutidas)
+    // Requer instalação 'currentUser' para ter permissão de escrita.
+    private static async getStorageRoot(tauri: any) {
+        const resDir = await tauri.path.resourceDir();
+        // Tenta caminho padrão 'bibles' dentro de resources
+        return await tauri.path.join(resDir, 'bibles');
+    }
+
+    // Legado: Meus Documentos (apenas leitura para migração se necessário, mas o foco é unificar)
+    private static async getLegacyRoot(tauri: any) {
         const docDir = await tauri.path.documentDir();
         return await tauri.path.join(docDir, 'CHAMA_ONLINE_BIBLES');
     }
@@ -35,24 +43,19 @@ export class LocalBibleManager {
     }
 
     private static async getRoot(tauri: any) {
-        return this.getDocRoot(tauri);
+        return this.getStorageRoot(tauri);
     }
 
     /**
      * Helper para logar em arquivo (debug)
      */
-    /**
-     * Helper para logar em arquivo (debug)
-     * PERFORMANCE FIX: Desabilitado log em arquivo pois causa gargalo massivo no download.
-     */
     private static async logToFile(message: string) {
-        // Log apenas no console para evitar I/O de disco bloqueante durante loops
         // console.log('[LocalBibleManager]', message);
     }
 
 
     /**
-     * Salva o conteúdo de um capítulo localmente. (SEMPRE NO DOCUMENTOS)
+     * Salva o conteúdo de um capítulo localmente. (SEMPRE NO APPDATA AGORA)
      */
     static async saveChapter(versionId: string, bookId: string, chapterId: string, content: any) {
         const tauri = getTauri();
@@ -60,100 +63,60 @@ export class LocalBibleManager {
 
         try {
             await this.logToFile(`=== SAVE START: ${versionId}/${bookId}/${chapterId} ===`);
-            const root = await this.getDocRoot(tauri);
+            const root = await this.getStorageRoot(tauri); // USA APPDATA
             await this.logToFile(`Root path: ${root}`);
             console.log('[SAVE] Root path:', root);
 
             // CRITICAL: Ensure root directory exists first
             const rootExists = await tauri.fs.exists(root);
-            await this.logToFile(`Root exists: ${rootExists}`);
             if (!rootExists) {
-                await this.logToFile(`Creating root...`);
-                console.log('[SAVE] Creating root directory:', root);
                 try {
                     await tauri.fs.createDir(root, { recursive: true });
-                    await this.logToFile(`Root created OK`);
-                    console.log('[SAVE] Root created successfully');
                 } catch (err: any) {
-                    await this.logToFile(`Root create FAILED: ${err.message}`);
                     throw err;
                 }
-            } else {
-                console.log('[SAVE] Root already exists');
             }
 
             const versionDir = await tauri.path.join(root, versionId);
             const bookDir = await tauri.path.join(versionDir, bookId);
-            await this.logToFile(`Version dir: ${versionDir}`);
-            await this.logToFile(`Book dir: ${bookDir}`);
-            console.log('[SAVE] Version dir:', versionDir);
-            console.log('[SAVE] Book dir:', bookDir);
 
             try {
-                const versionExists = await tauri.fs.exists(versionDir);
-                await this.logToFile(`Version dir exists: ${versionExists}`);
-                if (!versionExists) {
-                    await this.logToFile(`Creating version dir...`);
-                    console.log('[SAVE] Creating version dir');
+                if (!(await tauri.fs.exists(versionDir))) {
                     await tauri.fs.createDir(versionDir, { recursive: true });
-                    await this.logToFile(`Version dir created OK`);
                 }
-            } catch (vErr: any) {
-                await this.logToFile(`Version dir create FAILED: ${vErr?.message || JSON.stringify(vErr)}`);
-                throw vErr;
-            }
+            } catch (vErr: any) { throw vErr; }
 
             try {
-                const bookExists = await tauri.fs.exists(bookDir);
-                await this.logToFile(`Book dir exists: ${bookExists}`);
-                if (!bookExists) {
-                    await this.logToFile(`Creating book dir...`);
-                    console.log('[SAVE] Creating book dir');
+                if (!(await tauri.fs.exists(bookDir))) {
                     await tauri.fs.createDir(bookDir, { recursive: true });
-                    await this.logToFile(`Book dir created OK`);
                 }
-            } catch (bErr: any) {
-                await this.logToFile(`Book dir create FAILED: ${bErr?.message || JSON.stringify(bErr)}`);
-                throw bErr;
-            }
-
+            } catch (bErr: any) { throw bErr; }
 
             const filePath = await tauri.path.join(bookDir, `${chapterId.replace('.', '_')}.json`);
-            await this.logToFile(`Writing file: ${filePath}`);
-            console.log('[SAVE] Writing file:', filePath);
+            console.log('[SAVE] Writing SECURE file:', filePath);
 
             try {
-                await tauri.fs.writeTextFile(filePath, JSON.stringify(content));
-                await this.logToFile(`File write SUCCESS`);
-                console.log('[SAVE] SUCCESS!');
+                // USA COMANDO DE CRIPTOGRAFIA
+                await tauri.invoke('write_file_secure', {
+                    path: filePath,
+                    content: JSON.stringify(content)
+                });
+                console.log('[SAVE] SECURE SUCCESS!');
             } catch (wErr: any) {
-                await this.logToFile(`File write FAILED: ${wErr?.message || JSON.stringify(wErr)}`);
+                console.error('[SAVE] Secure Write Failed', wErr);
                 throw wErr;
             }
 
             this.cache.set(`${versionId}/${bookId}/${chapterId}`, content);
-            await this.logToFile(`=== SAVE SUCCESS ===`);
             return true;
         } catch (e: any) {
-            const errorMsg = e?.message || e?.toString() || 'Unknown error';
-            const errorStack = e?.stack || 'No stack trace';
-            const errorJson = JSON.stringify(e, Object.getOwnPropertyNames(e));
-
-            await this.logToFile(`=== SAVE ERROR ===`);
-            await this.logToFile(`Error message: ${errorMsg}`);
-            await this.logToFile(`Error stack: ${errorStack}`);
-            await this.logToFile(`Error JSON: ${errorJson}`);
-            await this.logToFile(`Error type: ${typeof e}`);
-
             console.error('[SAVE] ERROR:', e);
-            console.error('[SAVE] Error message:', errorMsg);
-            console.error('[SAVE] Error stack:', errorStack);
             return false;
         }
     }
 
     /**
-     * Tenta obter um capítulo do armazenamento local (Doc ou Resource).
+     * Tenta obter um capítulo do armazenamento local (AppData, Doc ou Resource).
      */
     static async getChapter(versionId: string, bookId: string, chapterId: string) {
         const cacheKey = `${versionId}/${bookId}/${chapterId}`;
@@ -162,7 +125,6 @@ export class LocalBibleManager {
         const tauri = getTauri();
         if (!tauri) {
             // WEB/MOBILE FALLBACK
-            // 1. TENTA ROTA RELATIVA
             try {
                 const res = await fetch(`/api/offline/chapter/${versionId}/${bookId}/${chapterId}`);
                 if (res.ok) {
@@ -172,7 +134,6 @@ export class LocalBibleManager {
                 }
             } catch (e) { }
 
-            // 2. FALLBACK 4523 (Dynamic Hostname for Mobile)
             try {
                 const hostname = window.location.hostname;
                 const res = await fetch(`http://${hostname}:4523/api/offline/chapter/${versionId}/${bookId}/${chapterId}`);
@@ -188,23 +149,30 @@ export class LocalBibleManager {
         try {
             const filename = `${chapterId.replace('.', '_')}.json`;
 
-            // 1. Tentar Meus Documentos
-            const docRoot = await this.getDocRoot(tauri);
-            const docPath = await tauri.path.join(docRoot, versionId, bookId, filename);
-            if (await tauri.fs.exists(docPath)) {
-                const content = JSON.parse(await tauri.fs.readTextFile(docPath));
-                this.cache.set(cacheKey, content);
-                return content;
-            }
+            // Helper para tentar ler de um root
+            const tryRead = async (root: string) => {
+                const docPath = await tauri.path.join(root, versionId, bookId, filename);
+                if (await tauri.fs.exists(docPath)) {
+                    // USA LEITURA SEGURA (Tenta descriptografar ou ler plano)
+                    const contentStr = await tauri.invoke('read_file_secure', { path: docPath }) as string;
+                    const content = JSON.parse(contentStr);
+                    this.cache.set(cacheKey, content);
+                    return content;
+                }
+                return null;
+            };
 
-            // 2. Tentar Resources (Bundled)
-            const resRoot = await this.getResourceRoot(tauri);
-            const resPath = await tauri.path.join(resRoot, versionId, bookId, filename);
-            if (await tauri.fs.exists(resPath)) {
-                const content = JSON.parse(await tauri.fs.readTextFile(resPath));
-                this.cache.set(cacheKey, content);
-                return content;
-            }
+            // 1. Tentar AppData (Novo Padrão)
+            let result = await tryRead(await this.getStorageRoot(tauri));
+            if (result) return result;
+
+            // 2. Tentar Meus Documentos (Legado)
+            result = await tryRead(await this.getLegacyRoot(tauri));
+            if (result) return result;
+
+            // 3. Tentar Resources (Bundled - sempre read_file_secure também, pois main.rs usa isso)
+            result = await tryRead(await this.getResourceRoot(tauri));
+            if (result) return result;
 
         } catch (e) { }
         return null;
@@ -220,13 +188,17 @@ export class LocalBibleManager {
             return versions.some((v: any) => v.id === versionId);
         }
         try {
-            const docRoot = await this.getDocRoot(tauri);
-            const versionDir = await tauri.path.join(docRoot, versionId);
-            if (await tauri.fs.exists(versionDir)) return true;
+            const roots = [
+                await this.getStorageRoot(tauri),
+                await this.getLegacyRoot(tauri),
+                await this.getResourceRoot(tauri)
+            ];
 
-            const resRoot = await this.getResourceRoot(tauri);
-            const resVersionDir = await tauri.path.join(resRoot, versionId);
-            return await tauri.fs.exists(resVersionDir);
+            for (const root of roots) {
+                const versionDir = await tauri.path.join(root, versionId);
+                if (await tauri.fs.exists(versionDir)) return true;
+            }
+            return false;
         } catch (e) { return false; }
     }
 
@@ -262,125 +234,120 @@ export class LocalBibleManager {
 
     static async getVersionBooks(versionId: string): Promise<any[]> {
         const ORDER = Object.keys(this.BOOK_NAMES);
-
         const tauri = getTauri();
         if (!tauri) {
-            // WEB/MOBILE FALLBACK
-            // 1. TENTA ROTA RELATIVA
             try {
                 const res = await fetch(`/api/offline/books/${versionId}`);
-                if (res.ok) {
-                    const books = await res.json();
-                    return this.processBooks(books, ORDER);
-                }
+                if (res.ok) return this.processBooks(await res.json(), ORDER);
             } catch (e) { }
-
-            // 2. FALLBACK 4523
             try {
                 const hostname = window.location.hostname;
                 const res = await fetch(`http://${hostname}:4523/api/offline/books/${versionId}`);
-                if (res.ok) {
-                    const books = await res.json();
-                    return this.processBooks(books, ORDER);
-                }
+                if (res.ok) return this.processBooks(await res.json(), ORDER);
             } catch (e) { }
             return [];
         }
 
         try {
-            let root = await this.getDocRoot(tauri);
-            let versionDir = await tauri.path.join(root, versionId);
+            // Tenta achar em qualquer root
+            const roots = [
+                await this.getStorageRoot(tauri),
+                await this.getLegacyRoot(tauri),
+                await this.getResourceRoot(tauri)
+            ];
 
-            // Se não achar em Doc, tenta Res
-            if (!(await tauri.fs.exists(versionDir))) {
-                root = await this.getResourceRoot(tauri);
-                versionDir = await tauri.path.join(root, versionId);
-            }
-
-            if (!(await tauri.fs.exists(versionDir))) return [];
-
-            const entries = await tauri.fs.readDir(versionDir);
-            const books = [];
-
-            for (const entry of entries) {
-                if (entry.children || entry.isDirectory) {
-                    const code = entry.name.toUpperCase();
-                    if (this.BOOK_NAMES[code]) {
-                        books.push({
-                            id: code,
-                            usfm: code,
-                            abbreviation: code.charAt(0) + code.slice(1).toLowerCase(),
-                            name: this.BOOK_NAMES[code]
-                        });
+            for (const root of roots) {
+                const versionDir = await tauri.path.join(root, versionId);
+                if (await tauri.fs.exists(versionDir)) {
+                    const entries = await tauri.fs.readDir(versionDir);
+                    const books = [];
+                    for (const entry of entries) {
+                        if (entry.children || entry.isDirectory) {
+                            const code = entry.name.toUpperCase();
+                            if (this.BOOK_NAMES[code]) {
+                                books.push({
+                                    id: code,
+                                    usfm: code,
+                                    abbreviation: code.charAt(0) + code.slice(1).toLowerCase(),
+                                    name: this.BOOK_NAMES[code]
+                                });
+                            }
+                        }
                     }
+                    if (books.length > 0) return books.sort((a: any, b: any) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
                 }
             }
-            return books.sort((a: any, b: any) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
+            return [];
         } catch (e) { return []; }
     }
 
     static async getVersionChapters(versionId: string, bookId: string): Promise<any[]> {
         const tauri = getTauri();
         if (!tauri) {
-            // WEB/MOBILE FALLBACK
-            // 1. TENTA ROTA RELATIVA
             try {
                 const res = await fetch(`/api/offline/chapters/${versionId}/${bookId}`);
-                if (res.ok) {
-                    return await res.json();
-                }
+                if (res.ok) return await res.json();
             } catch (e) { }
-
-            // 2. FALLBACK 4523
             try {
                 const hostname = window.location.hostname;
                 const res = await fetch(`http://${hostname}:4523/api/offline/chapters/${versionId}/${bookId}`);
-                if (res.ok) {
-                    return await res.json();
-                }
+                if (res.ok) return await res.json();
             } catch (e) { }
             return [];
         }
 
         try {
-            let root = await this.getDocRoot(tauri);
-            let bookDir = await tauri.path.join(root, versionId, bookId);
+            const roots = [
+                await this.getStorageRoot(tauri),
+                await this.getLegacyRoot(tauri),
+                await this.getResourceRoot(tauri)
+            ];
 
-            if (!(await tauri.fs.exists(bookDir))) {
-                root = await this.getResourceRoot(tauri);
-                bookDir = await tauri.path.join(root, versionId, bookId);
-            }
-            if (!(await tauri.fs.exists(bookDir))) return [];
-
-            const entries = await tauri.fs.readDir(bookDir);
-            const chapters = [];
-
-            for (const entry of entries) {
-                const match = entry.name.match(/_(\d+)\.json$/);
-                if (match) {
-                    const num = parseInt(match[1]);
-                    chapters.push({ id: `${bookId}.${num}`, usfm: `${bookId}.${num}`, number: String(num) });
+            for (const root of roots) {
+                const bookDir = await tauri.path.join(root, versionId, bookId);
+                if (await tauri.fs.exists(bookDir)) {
+                    const entries = await tauri.fs.readDir(bookDir);
+                    const chapters = [];
+                    for (const entry of entries) {
+                        const match = entry.name.match(/_(\d+)\.json$/);
+                        if (match) {
+                            const num = parseInt(match[1]);
+                            chapters.push({ id: `${bookId}.${num}`, usfm: `${bookId}.${num}`, number: String(num) });
+                        }
+                    }
+                    if (chapters.length > 0) return chapters.sort((a, b) => parseInt(a.number) - parseInt(b.number));
                 }
             }
-            return chapters.sort((a, b) => parseInt(a.number) - parseInt(b.number));
+            return [];
         } catch (e) { return []; }
     }
 
     static async listDownloadedVersions(): Promise<{ id: string, source: 'user' | 'system', name?: string, installedName?: string }[]> {
-        // Alias for getLocalVersions
         return await this.getLocalVersions();
     }
 
     static async deleteVersion(versionId: string) {
-        // Apenas deleta do DOCroot. Resource é imutável.
         const tauri = getTauri();
         if (!tauri) return false;
         try {
-            const root = await this.getDocRoot(tauri);
-            const versionDir = await tauri.path.join(root, versionId);
-            if (await tauri.fs.exists(versionDir)) {
-                await tauri.fs.removeDir(versionDir, { recursive: true });
-                // clear cache
+            // Tenta deletar de ambos (Storage e Legacy)
+            let deleted = false;
+
+            const storageRoot = await this.getStorageRoot(tauri);
+            const vDir1 = await tauri.path.join(storageRoot, versionId);
+            if (await tauri.fs.exists(vDir1)) {
+                await tauri.fs.removeDir(vDir1, { recursive: true });
+                deleted = true;
+            }
+
+            const legacyRoot = await this.getLegacyRoot(tauri);
+            const vDir2 = await tauri.path.join(legacyRoot, versionId);
+            if (await tauri.fs.exists(vDir2)) {
+                await tauri.fs.removeDir(vDir2, { recursive: true });
+                deleted = true;
+            }
+
+            if (deleted) {
                 const keys = Array.from(this.cache.keys());
                 for (const key of keys) { if (key.startsWith(versionId + '/')) this.cache.delete(key); }
                 return true;
@@ -392,31 +359,15 @@ export class LocalBibleManager {
     static async getLocalVersions(): Promise<any[]> {
         const tauri = getTauri();
         if (!tauri) {
-            // WEB/MOBILE FALLBACK
-
-            // 1. TENTA ROTA RELATIVA (Ideal para Mobile / Produção / IP Remoto / IP:4523)
             try {
                 const res = await fetch('/api/offline/versions');
-                if (res.ok) {
-                    return await res.json();
-                }
-            } catch (e) {
-                // Ignora erro e tenta fallback
-            }
-
-            // 2. FALLBACK 4523
+                if (res.ok) return await res.json();
+            } catch (e) { }
             try {
                 const hostname = window.location.hostname;
-                const apiUrl = `http://${hostname}:4523/api/offline/versions`;
-                const res = await fetch(apiUrl, { signal: AbortSignal.timeout(1000) });
-
-                if (res.ok) {
-                    return await res.json();
-                }
-            } catch (e) {
-                // Silenciosamente ignora
-            }
-
+                const res = await fetch(`http://${hostname}:4523/api/offline/versions`, { signal: AbortSignal.timeout(1000) });
+                if (res.ok) return await res.json();
+            } catch (e) { }
             return [];
         }
 
@@ -433,7 +384,8 @@ export class LocalBibleManager {
                         const metaPath = await tauri.path.join(root, vid, 'metadata.json');
                         if (await tauri.fs.exists(metaPath)) {
                             try {
-                                const content = await tauri.fs.readTextFile(metaPath);
+                                // SECURE READ
+                                const content = await tauri.invoke('read_file_secure', { path: metaPath }) as string;
                                 const meta = JSON.parse(content);
                                 versionsMap.set(vid, meta);
                             } catch (e) { }
@@ -449,10 +401,9 @@ export class LocalBibleManager {
                 }
             };
 
-            // Scan Resources FIRST (default)
             await scan(await this.getResourceRoot(tauri));
-            // Scan Docs SECOND (overrides/updates)
-            await scan(await this.getDocRoot(tauri));
+            await scan(await this.getLegacyRoot(tauri)); // Legado sobrescreve Resource
+            await scan(await this.getStorageRoot(tauri)); // Storage novo sobrescreve tudo (prioridade)
 
             return Array.from(versionsMap.values());
         } catch (e) { return []; }
@@ -461,16 +412,14 @@ export class LocalBibleManager {
     static async getBiblesPath() {
         const tauri = getTauri();
         if (!tauri) return 'Armazenamento Temporário (Web)';
-        return await this.getDocRoot(tauri);
+        return await this.getStorageRoot(tauri);
     }
-    /**
-     * Salva o metadata da versão para exibição correta offline.
-     */
+
     static async saveVersionMetadata(versionId: string, meta: any) {
         const tauri = getTauri();
         if (!tauri) return false;
         try {
-            const root = await this.getDocRoot(tauri);
+            const root = await this.getStorageRoot(tauri); // AppData
             const versionDir = await tauri.path.join(root, versionId);
 
             if (!(await tauri.fs.exists(versionDir))) {
@@ -478,7 +427,11 @@ export class LocalBibleManager {
             }
 
             const metaPath = await tauri.path.join(versionDir, 'metadata.json');
-            await tauri.fs.writeTextFile(metaPath, JSON.stringify(meta, null, 2));
+            // SECURE WRITE
+            await tauri.invoke('write_file_secure', {
+                path: metaPath,
+                content: JSON.stringify(meta, null, 2)
+            });
             return true;
         } catch (e) {
             console.error('Failed to save metadata', e);
@@ -486,36 +439,47 @@ export class LocalBibleManager {
         }
     }
 
-    /**
-     * Tenta reparar metadados de todas as versões baixadas localmente.
-     * Gera estatísticas de livros/capítulos/versículos para versões incompletas.
-     */
     static async fixAllMetadata() {
         const tauri = getTauri();
         if (!tauri) return { success: false, msg: 'Tauri not found' };
 
         try {
-            const root = await this.getDocRoot(tauri);
-            if (!(await tauri.fs.exists(root))) return { success: true, count: 0 };
+            // Fix apenas no StorageRoot e LegacyRoot (Resource é RO)
+            let count = 0;
 
-            const entries = await tauri.fs.readDir(root);
-            let repairedCount = 0;
-
-            for (const entry of entries) {
-                if (entry.children || entry.isDirectory) {
-                    const vid = entry.name;
-                    await this.repairVersionMetadata(tauri, root, vid);
-                    repairedCount++;
+            // 1. Storage
+            let root = await this.getStorageRoot(tauri);
+            if (await tauri.fs.exists(root)) {
+                const entries = await tauri.fs.readDir(root);
+                for (const entry of entries) {
+                    if (entry.children || entry.isDirectory) {
+                        await this.repairVersionMetadata(tauri, root, entry.name);
+                        count++;
+                    }
                 }
             }
-            return { success: true, count: repairedCount };
+
+            // 2. Legacy (opcional, se quisermos manter metadados atualizados lá também)
+            // Mas só reparamos se existir
+            root = await this.getLegacyRoot(tauri);
+            if (await tauri.fs.exists(root)) {
+                const entries = await tauri.fs.readDir(root);
+                for (const entry of entries) {
+                    if (entry.children || entry.isDirectory) {
+                        await this.repairVersionMetadata(tauri, root, entry.name);
+                        count++;
+                    }
+                }
+            }
+
+            return { success: true, count };
         } catch (e: any) {
-            console.error('Fix Metadata Error', e);
             return { success: false, msg: e.message };
         }
     }
 
     private static async repairVersionMetadata(tauri: any, root: string, vid: string) {
+        // Updated repair logic to use secure read/write
         try {
             const versionDir = await tauri.path.join(root, vid);
             const metaPath = await tauri.path.join(versionDir, 'metadata.json');
@@ -523,18 +487,15 @@ export class LocalBibleManager {
             let meta: any = {};
             if (await tauri.fs.exists(metaPath)) {
                 try {
-                    const content = await tauri.fs.readTextFile(metaPath);
+                    const content = await tauri.invoke('read_file_secure', { path: metaPath }) as string;
                     meta = JSON.parse(content);
                 } catch { meta = {}; }
             }
 
-            // Se já tem stats completos, pula (ou força update se parecer antigo?)
-            // Vamos forçar update se não tiver 'booksStats'
             if (meta.booksStats && Object.keys(meta.booksStats).length > 0) return;
 
             console.log(`[Repair] Reparando metadata para ${vid}...`);
 
-            // Escanear diretórios de livros
             const booksStats: any = {};
             const bookEntries = await tauri.fs.readDir(versionDir);
 
@@ -546,7 +507,6 @@ export class LocalBibleManager {
                     booksStats[bid] = { chapters: 0, verses: [] };
                     const bookDir = await tauri.path.join(versionDir, bid);
 
-                    // Escanear capítulos
                     const chapEntries = await tauri.fs.readDir(bookDir);
                     for (const cEntry of chapEntries) {
                         if (cEntry.name?.endsWith('.json')) {
@@ -556,24 +516,20 @@ export class LocalBibleManager {
                             if (chapNum > 0) {
                                 booksStats[bid].chapters = Math.max(booksStats[bid].chapters, chapNum);
 
-                                // Opcional: Ler arquivo para contar versículos
-                                // Para não demorar muito, vamos fazer uma leitura
                                 try {
                                     const cPath = await tauri.path.join(bookDir, cEntry.name);
-                                    const content = await tauri.fs.readTextFile(cPath);
+                                    // Secure Read para contar versículos
+                                    const content = await tauri.invoke('read_file_secure', { path: cPath }) as string;
                                     const json = JSON.parse(content);
                                     const html = json.content || json.data?.content || '';
 
-                                    // Count verses regex
                                     const matches = html.match(/<span[^>]*class="[^"]*(?:label|v|verse-number|versenum)[^"]*"[^>]*>([\d]+)<\/span>/gi);
                                     let vCount = matches ? matches.length : 0;
-
                                     if (vCount === 0) {
                                         const matches2 = html.match(/data-usfm="[^"]+\.[^"]+\.(\d+)"/gi);
                                         vCount = matches2 ? matches2.length : 0;
                                     }
 
-                                    // Garante array
                                     while (booksStats[bid].verses.length < chapNum) booksStats[bid].verses.push(0);
                                     booksStats[bid].verses[chapNum - 1] = vCount > 0 ? vCount : 50;
 
@@ -588,7 +544,6 @@ export class LocalBibleManager {
             meta.availableBooks = Object.keys(booksStats);
             meta.id = vid;
 
-            // Tenta corrigir nome se for numérico
             const { VERSION_FULL_NAMES, OLD_TESTAMENT_BOOKS } = await import('./bible-data');
 
             if (!meta.name || !isNaN(Number(meta.name))) {
@@ -599,13 +554,16 @@ export class LocalBibleManager {
                 }
             }
 
-            // Detecta NT
             const hasOT = Object.keys(booksStats).some(bid => OLD_TESTAMENT_BOOKS.has(bid));
             if (!hasOT && meta.name && !meta.name.includes('(Novo Testamento)') && !Object.keys(booksStats).includes('GEN')) {
                 meta.name += ' (Novo Testamento)';
             }
 
-            await tauri.fs.writeTextFile(metaPath, JSON.stringify(meta, null, 2));
+            // Secure Write
+            await tauri.invoke('write_file_secure', {
+                path: metaPath,
+                content: JSON.stringify(meta, null, 2)
+            });
             console.log(`[Repair] Metadata salvo para ${vid}`);
 
         } catch (e) {

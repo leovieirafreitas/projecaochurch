@@ -106,7 +106,7 @@
                     "headerImage": null,
                     "sidebarImage": "icons/sidebar.bmp",
                     "installerIcon": "icons/icon.ico",
-                    "installMode": "perMachine",
+                    "installMode": "currentUser",
                     "languages": [
                         "PortugueseBR"
                     ],
