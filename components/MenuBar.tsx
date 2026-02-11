@@ -45,6 +45,7 @@ export default function MenuBar() {
         const updateRecents = () => load();
         window.addEventListener('recents-updated', updateRecents);
         window.addEventListener('project-loaded', updateRecents);
+
         return () => {
             window.removeEventListener('recents-updated', updateRecents);
             window.removeEventListener('project-loaded', updateRecents);
@@ -248,6 +249,7 @@ export default function MenuBar() {
                                         setShortcutsEnabled(newState);
                                         localStorage.setItem('bible_shortcuts_enabled', String(newState));
                                         window.dispatchEvent(new CustomEvent('bible-shortcuts-toggle', { detail: newState }));
+                                        closeAll();
                                     }}
                                 >
                                     <div className={`w-3 h-3 border border-gray-400 rounded-sm flex items-center justify-center ${shortcutsEnabled ? 'bg-[#007acc] border-[#007acc]' : ''}`}>
@@ -259,14 +261,6 @@ export default function MenuBar() {
                         )}
                     </div>
 
-                    {/* CURRENT PROJECT INDICATOR (NEW STYLE) */}
-                    {currentProjectDisplay && (
-                        <div className="ml-4 flex items-center gap-2 bg-[#1a1a1a] px-3 py-1 rounded-md border border-[#333] shadow-sm">
-                            <span className="text-[11px] text-gray-400 font-mono select-none uppercase tracking-wide">
-                                {currentProjectDisplay}
-                            </span>
-                        </div>
-                    )}
 
                     {/* CANTO DIREITO: MODO MOBILE + PROJEÇÃO LOUVOR + VERSÃO */}
                     <div className="ml-auto flex items-center gap-3 pr-3">
