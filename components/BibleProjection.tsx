@@ -785,23 +785,27 @@ export default function BibleProjection({ verseText, reference, onClose, storage
             `}</style>
 
             {/* TOP BAR */}
-            <div className="h-14 bg-[#202020] border-b border-[#333] flex items-center justify-between px-4 shrink-0 shadow-sm z-50">
-                <div className="flex items-center gap-3">
-                    <label className="bg-[#2a2a2a] hover:bg-[#333] text-gray-300 border border-[#444] px-4 py-2 rounded flex items-center gap-2 text-xs font-bold cursor-pointer transition">
-                        CARREGAR IMG/GIF
+            <div className="h-14 bg-[#202020] border-b border-[#333] flex items-center justify-between px-6 shrink-0 shadow-sm z-50">
+                <div className="flex items-center gap-4">
+                    <label className="group flex items-center gap-2 text-[10px] font-bold text-gray-400 hover:text-white cursor-pointer transition-colors select-none uppercase tracking-wider">
+                        CARREGAR FUNDO
                         <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                     </label>
                     {background && (
-                        <button onClick={() => setBackground(null)} className="h-8 w-8 flex items-center justify-center bg-[#2a2a2a] hover:bg-red-900 border border-[#444] text-red-500 rounded" title="Remover Imagem">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                        <>
+                            <div className="w-[1px] h-3 bg-[#444] mx-2"></div>
+                            <button onClick={() => setBackground(null)} className="text-[10px] font-bold text-gray-500 hover:text-red-500 transition-colors uppercase tracking-wider" title="Apagar Fundo">
+                                APAGAR FUNDO
+                            </button>
+                        </>
                     )}
                 </div>
-                <div className="flex items-center gap-3">
-                    <button onClick={() => setShowGuides(!showGuides)} className={`text-xs font-bold px-4 py-2 rounded border transition ${showGuides ? 'bg-blue-600/20 text-blue-400 border-blue-500/50' : 'bg-[#2a2a2a] text-gray-400 border-[#444]'}`}>
-                        Guias {showGuides ? 'ON' : 'OFF'}
+                <div className="flex items-center gap-4">
+                    <button onClick={() => setShowGuides(!showGuides)} className={`text-[10px] font-bold transition-colors uppercase tracking-wider ${showGuides ? 'text-blue-500' : 'text-gray-500 hover:text-gray-300'}`}>
+                        GUIAS {showGuides ? 'ON' : 'OFF'}
                     </button>
-                    <button onClick={onClose} className="bg-red-600 hover:bg-red-500 text-white px-5 py-2 rounded text-xs font-bold tracking-wide shadow-lg shadow-red-900/20">FECHAR</button>
+                    <div className="w-px h-4 bg-[#333]"></div>
+                    <button onClick={onClose} className="text-xs font-bold text-gray-500 hover:text-red-500 transition-colors tracking-wide px-2">FECHAR</button>
                 </div>
             </div>
 
@@ -1250,7 +1254,10 @@ export default function BibleProjection({ verseText, reference, onClose, storage
 
             {/* SLIDES BAR */}
             <div className="h-28 bg-[#181818] border-t border-[#333] flex items-center gap-4 px-4 overflow-x-auto custom-scrollbar z-40">
-                <span className="text-[10px] font-bold text-gray-500 sticky left-0 bg-[#181818] px-2 uppercase shrink-0">Slides ({slides.length})</span>
+                <div className="sticky left-0 bg-[#181818]/95 backdrop-blur-sm px-3 flex flex-col justify-center shrink-0 border-r border-[#333] h-full z-10 min-w-[100px]">
+                    <span className="text-xs font-bold text-blue-400 uppercase leading-tight mb-1">{reference}</span>
+                    <span className="text-[9px] font-medium text-gray-600 uppercase tracking-widest">{slides.length} SLIDES</span>
+                </div>
                 {slides.map((s, idx) => (
                     <div key={idx} onClick={() => setCurrentSlideIndex(idx)} className={`shrink-0 w-40 h-20 rounded border-2 cursor-pointer relative overflow-hidden transition ${currentSlideIndex === idx ? 'border-blue-500' : 'border-[#333]'}`}>
                         <div className="absolute inset-0 bg-black" style={{ backgroundColor }}>{background && <img src={background} className="w-full h-full object-cover opacity-60" />}</div>
