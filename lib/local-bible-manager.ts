@@ -179,6 +179,54 @@ export class LocalBibleManager {
     }
 
     /**
+     * Faz o download de uma versão completa (Livros e Capítulos).
+     * @param versionId ID da versão (ex: ARA, NVI)
+     * @param onProgress Callback (0-100)
+     */
+    static async downloadVersion(versionId: string, onProgress: (prog: number, msg: string) => void) {
+        const { YouVersionClient } = await import('./youversion-client');
+        try {
+            onProgress(0, 'Iniciando...');
+            const books = await YouVersionClient.getBooks(versionId);
+            if (!books || books.length === 0) throw new Error('Falha ao listar livros');
+
+            await this.saveVersionMetadata(versionId, { id: versionId, date: new Date().toISOString() });
+
+            // Estimate total: 66 books * avg 20 chapters = ~1300
+            let totalChapters = 1189;
+            let current = 0;
+
+            for (const book of books) {
+                const chapters = await YouVersionClient.getChapters(versionId, book.id);
+                if (chapters) {
+                    for (const chap of chapters) {
+                        const chapId = chap.passage_id || chap.id;
+
+                        const content = await YouVersionClient.getPassage(versionId, chapId);
+                        if (content) {
+                            await this.saveChapter(versionId, book.id, chapId, content);
+                        }
+
+                        current++;
+                        const pct = Math.min(99, (current / totalChapters) * 100);
+                        onProgress(pct, `Baixando ${book.name} ${chapId}`);
+                        await new Promise(r => setTimeout(r, 20)); // throttle
+                    }
+                }
+            }
+            // Re-index stats
+            await this.repairVersionMetadata(getTauri(), await this.getStorageRoot(getTauri()), versionId);
+
+            onProgress(100, 'Concluído!');
+            return true;
+        } catch (e: any) {
+            console.error(e);
+            onProgress(0, 'Erro no download');
+            return false;
+        }
+    }
+
+    /**
      * Verifica se existe uma pasta para essa versão (indica download iniciado/parcial).
      */
     static async hasVersion(versionId: string) {

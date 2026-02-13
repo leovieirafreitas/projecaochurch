@@ -138,10 +138,139 @@ export default function BibleSearch() {
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [isProjectionVisible, setIsProjectionVisible] = useState(true);
 
-    // --- STATES PARA PREVIEW/SLIDES (Adicionados para corrigir erro) ---
+    // --- STATES PARA PREVIEW/SLIDES ---
     const [previewSettings, setPreviewSettings] = useState<any>(null);
     const [slideParts, setSlideParts] = useState<string[]>([]);
     const [currentPartIndex, setCurrentPartIndex] = useState(0);
+
+    // V116: SISTEMA DE SLOTS DE VERSÃO (3 SLOTS INDEPENDENTES)
+    // Slot 0: Padrão | Slot 1: Aux 1 | Slot 2: Aux 2
+    const [versionSlots, setVersionSlots] = useState<string[]>(['129', 'PORARA', 'PORACF']);
+    const [activeSlot, setActiveSlot] = useState<number>(0);
+    const [openSlotDropdown, setOpenSlotDropdown] = useState<number | null>(null);
+    const [hiddenVersions, setHiddenVersions] = useState<string[]>([]); // Lista de IDs ocultos
+
+    // Sincronizar Cache de Versões para o MenuBar usar
+    useEffect(() => {
+        if (versions && versions.length > 0) {
+            localStorage.setItem('cached_bible_versions', JSON.stringify(versions));
+        }
+    }, [versions]);
+
+    // Carregar Slots e Hidden do LocalStorage
+    useEffect(() => {
+        const s0 = localStorage.getItem('bible_slot_0') || '129';
+        const s1 = localStorage.getItem('bible_slot_1') || 'PORARA'; // RA default
+        const s2 = localStorage.getItem('bible_slot_2') || 'PORACF'; // ACF default
+        const active = parseInt(localStorage.getItem('bible_active_slot') || '0');
+        const hidden = JSON.parse(localStorage.getItem('bible_hidden_versions') || '[]');
+
+        setVersionSlots([s0, s1, s2]);
+        setActiveSlot(active);
+        setHiddenVersions(hidden);
+        setCurrentVersion(active === 0 ? s0 : active === 1 ? s1 : s2);
+    }, []);
+
+    // Atualizar CurrentVersion quando ActiveSlot Mudar
+    useEffect(() => {
+        const ver = versionSlots[activeSlot];
+        if (ver && ver !== currentVersion) {
+            setCurrentVersion(ver);
+            localStorage.setItem('bible_version', ver);
+            localStorage.setItem('bible_active_slot', String(activeSlot));
+        }
+    }, [activeSlot, versionSlots]);
+
+    // Set Version for specific Slot
+    const setSlotVersion = (slotIndex: number, versionId: string) => {
+        const newSlots = [...versionSlots];
+        newSlots[slotIndex] = versionId;
+        setVersionSlots(newSlots);
+        localStorage.setItem(`bible_slot_${slotIndex}`, versionId);
+        setOpenSlotDropdown(null);
+    };
+
+    // SWAP LÓGICO: Torna o Slot X o Padrão (Slot 0)
+    // O Slot X vai para a posição 0, e o antigo 0 vai para a posição X.
+    const activateSlotAsStandard = (sourceIndex: number) => {
+        if (sourceIndex === 0) {
+            setActiveSlot(0); // Já é o padrão
+            return;
+        }
+
+        const newSlots = [...versionSlots];
+        const oldStandard = newSlots[0];
+        const newStandard = newSlots[sourceIndex];
+
+        // Swap
+        newSlots[0] = newStandard;
+        newSlots[sourceIndex] = oldStandard;
+
+        setVersionSlots(newSlots);
+        setActiveSlot(0); // O novo padrão é o índice 0
+
+        // Persist
+        localStorage.setItem('bible_slot_0', newSlots[0]);
+        localStorage.setItem(`bible_slot_${sourceIndex}`, newSlots[sourceIndex]);
+        localStorage.setItem('bible_active_slot', '0');
+
+        // Update Current Version immediately
+        setCurrentVersion(newSlots[0]);
+    };
+
+    // Toggle Hidden Version
+    const toggleHiddenVersion = (vid: string) => {
+        let newHidden;
+        if (hiddenVersions.includes(vid)) {
+            newHidden = hiddenVersions.filter(id => id !== vid);
+        } else {
+            newHidden = [...hiddenVersions, vid];
+        }
+        setHiddenVersions(newHidden);
+        localStorage.setItem('bible_hidden_versions', JSON.stringify(newHidden));
+    };
+
+    // Listeners do MenuBar (Redirecionando eventos antigos para novos slots + Hidden Control)
+    useEffect(() => {
+        // Eventos de Seleção de Slot (vindos do Menu)
+        const handleSetStandard = () => setActiveSlot(0);
+        const handleSetAux1 = () => setActiveSlot(1);
+        const handleSetAux2 = () => setActiveSlot(2);
+
+        // Eventos de Seleção de Versão para um Slot Específico (Payload: {slot: 0, version: 'xxx'})
+        const handleSetSlotVersion = (e: CustomEvent) => {
+            if (e.detail && typeof e.detail.slot === 'number' && e.detail.version) {
+                setSlotVersion(e.detail.slot, e.detail.version);
+                // Se o slot alterado for o ativo, atualiza o texto imediatamente
+                if (e.detail.slot === activeSlot) {
+                    setCurrentVersion(e.detail.version);
+                }
+            }
+        };
+
+        // Evento toggle hidden (Payload: {version: 'xxx'})
+        const handleToggleHidden = (e: CustomEvent) => {
+            if (e.detail && e.detail.version) {
+                toggleHiddenVersion(e.detail.version);
+            }
+        };
+
+        window.addEventListener('bible-set-standard', handleSetStandard);
+        window.addEventListener('bible-swap-aux1', handleSetAux1);
+        window.addEventListener('bible-swap-aux2', handleSetAux2);
+        window.addEventListener('bible-set-slot-version', handleSetSlotVersion as EventListener);
+        window.addEventListener('bible-toggle-hidden', handleToggleHidden as EventListener);
+
+        return () => {
+            window.removeEventListener('bible-set-standard', handleSetStandard);
+            window.removeEventListener('bible-swap-aux1', handleSetAux1);
+            window.removeEventListener('bible-swap-aux2', handleSetAux2);
+            window.removeEventListener('bible-set-slot-version', handleSetSlotVersion as EventListener);
+            window.removeEventListener('bible-toggle-hidden', handleToggleHidden as EventListener);
+        };
+    }, [activeSlot, versionSlots, hiddenVersions]); // Dependências
+
+
 
     // Download Offline
     const [downloadStatus, setDownloadStatus] = useState<{ downloading: boolean, progress: number, message: string, currentId?: string }>({ downloading: false, progress: 0, message: '' });
@@ -1209,7 +1338,7 @@ export default function BibleSearch() {
                 tempDiv.innerHTML = html;
 
                 // Remove lixo (inclui títulos s1 e h1 que causam bugs em livros numerados ex: 1 João)
-                tempDiv.querySelectorAll('.note, .chapter-number, .audio-player, .s1, h1, h2, .r').forEach(n => n.remove());
+                tempDiv.querySelectorAll('.note, .audio-player, .s1, h1, h2').forEach(n => n.remove());
 
                 const verses: { num: number, text: string }[] = [];
 
@@ -1217,7 +1346,8 @@ export default function BibleSearch() {
                 let cleanHtml = (html || '')
                     .replace(/\<span[^\>]*class=\"[^\"]*(?:label|v|verse|verse-number|versenum|num|chapternum)[^\"]*\"[^\>]*\>([\d]+(?:[\-\u2013][\d]+)?)\<\/span\>/gi, '___V$1___')
                     .replace(/\<span[^\>]*class=\"[^\"]*yv-v[^\"]*\"[^\>]*v=\"([\d]+(?:[\-\u2013][\d]+)?)\"[^\>]*\>/gi, '___V$1___')
-                    .replace(/data-usfm=\"[^\"]+\.[^\"]+\.([\d]+(?:[\-\u2013][\d]+)?)\"/gi, 'data-v=\"$1\"');
+                    .replace(/data-usfm=\"[^\"]+\.[^\"]+\.([\d]+(?:[\-\u2013][\d]+)?)\"/gi, '___V$1___')
+                    .replace(/data-v=\"([\d]+(?:[\-\u2013][\d]+)?)\"/gi, '___V$1___');
 
                 let txt = cleanHtml.replace(/\<[^\>]+\>/g, ' ').replace(/\s+/g, ' ').trim();
                 const parts = txt.split('___V');
@@ -1506,144 +1636,131 @@ export default function BibleSearch() {
                     {/* CONTEÚDO DA TAB BÍBLIA */}
                     {sidebarTab === 'bible' && (
                         <>
-                            <div className="p-3 bg-gray-100 border-b border-gray-200 flex justify-between items-center h-12 shrink-0 gap-2">
-                                <div className="font-bold text-base text-gray-800 truncate flex-1 min-w-[30%]">
-                                    {BIBLE_BOOKS_DATA[selectedBookId]?.name} {selectedChapterId.split('.')[1] || ''}
+                            <div className="flex flex-col bg-gray-100 border-b border-gray-200 shrink-0 select-none">
+                                {/* LINHA 1: TÍTULO DO LIVRO (Centralizado, Grande) */}
+                                <div className="p-2 flex items-center justify-center border-b border-gray-200 bg-white">
+                                    <h2 className="font-bold text-lg text-gray-800 tracking-tight">
+                                        {BIBLE_BOOKS_DATA[selectedBookId]?.name} <span className="text-gray-500 font-medium">{selectedChapterId.split('.')[1] || ''}</span>
+                                    </h2>
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0 max-w-[70%]">
-                                    {/* CUSTOM DROPDOWN REDESIGNED START */}
-                                    <div className="relative flex-1 min-w-0">
-                                        <button
-                                            onClick={() => setIsVersionDropdownOpen(!isVersionDropdownOpen)}
-                                            className="w-full bg-white border border-gray-300 text-gray-700 text-[11px] font-bold uppercase rounded py-1 px-2 flex justify-between items-center hover:bg-gray-50 transition min-w-[140px]"
-                                            title="Selecione a Versão"
-                                        >
-                                            <span className="truncate mr-2">
-                                                {(() => {
-                                                    const v = versions.find(ver => ver.id === currentVersion);
-                                                    if (!v) return currentVersion;
-                                                    // Mapping Logic - SAFE ACCESS
-                                                    const safeAbbr = (v.abbreviation || '').toUpperCase();
-                                                    const safeId = String(v.id);
 
-                                                    let fullName = VERSION_FULL_NAMES[safeAbbr] || VERSION_FULL_NAMES[safeId] || v.local_title || v.name || safeAbbr || safeId;
+                                {/* LINHA 2: SLOTS DE VERSÃO (Layout Esticado) */}
+                                <div className="flex bg-gray-50 border-b border-gray-200 h-[32px] divide-x divide-gray-200">
+                                    {[0, 1, 2].map((slotIndex) => {
+                                        const vId = versionSlots[slotIndex];
+                                        const vObj = versions.find(v => String(v.id) === String(vId));
+                                        // Nome Curto (Abbr) ou ID
+                                        const label = vObj?.abbreviation?.toUpperCase() || vId || '...';
 
-                                                    // Override Specifics
-                                                    if (safeId === 'PORARA') fullName = 'Almeida Revista e Atualizada (Novo Testamento)';
-                                                    if (safeId === 'PORARC') fullName = 'Almeida Revista e Corrigida (Novo Testamento)';
-                                                    if (safeId === 'PORACF') fullName = 'Almeida Corrigida Fiel';
-                                                    if (safeId === 'PORBBS') fullName = 'Bíblia Sagrada (BBS)';
-                                                    if (safeId === '129') fullName = 'Nova Versão Internacional';
-                                                    if (safeId === '1967') fullName = 'O Livro';
-                                                    if (safeId === '4360') fullName = 'Nova Versão Internacional (PT)';
-                                                    if (safeId === '215') fullName = 'Almeida Corrigida Fiel (ACF- SBTB)';
+                                        // Active Logic
+                                        const isActive = activeSlot === slotIndex;
+                                        const isStandard = slotIndex === 0;
 
-                                                    // Numeric fallback
-                                                    if (!isNaN(Number(fullName))) {
-                                                        if (safeAbbr) fullName = `${safeAbbr} (${safeId})`;
-                                                        else fullName = `Versão ${safeId}`;
-                                                    }
+                                        return (
+                                            <div key={slotIndex} className="flex-1 flex min-w-0 group relative">
+                                                {/* BTN SELECT SLOT (Main Body) */}
+                                                {/* BTN SWAP/ACTIVATE (Main Body) */}
+                                                <button
+                                                    onClick={() => activateSlotAsStandard(slotIndex)}
+                                                    className={`
+                                                        flex-1 flex items-center justify-center gap-1.5 px-2 text-[10px] uppercase font-bold transition-all
+                                                        ${isStandard ? 'bg-white text-blue-700 shadow-inner' : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700'}
+                                                    `}
+                                                    title={isStandard ? "Versão Padrão (Ativa)" : "Clique para tornar esta versão a PADRÃO (Swap)"}
+                                                >
+                                                    {/* Standard Indicator */}
+                                                    {isStandard ? (
+                                                        <svg className="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                                    ) : (
+                                                        // Swap Icon (Hover)
+                                                        <div className="w-3 h-3 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 bg-blue-50 rounded-full">
+                                                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                                        </div>
+                                                    )}
+                                                    <span className="truncate">{label}</span>
+                                                </button>
 
-                                                    return fullName;
-                                                })()}
-                                            </span>
-                                            <svg className={`w-3 h-3 text-gray-500 transition-transform ${isVersionDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                            </svg>
-                                        </button>
+                                                {/* BTN DROPDOWN (Arrow) */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setOpenSlotDropdown(openSlotDropdown === slotIndex ? null : slotIndex);
+                                                    }}
+                                                    className={`
+                                                        w-6 flex items-center justify-center border-l border-gray-200 hover:bg-gray-200 transition-colors
+                                                        ${isActive ? 'bg-white' : 'bg-gray-50'}
+                                                        ${openSlotDropdown === slotIndex ? 'bg-blue-50 text-blue-600' : 'text-gray-400'}
+                                                    `}
+                                                    title="Alterar Bíblia deste Slot"
+                                                >
+                                                    <svg className="w-3 h-3 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                                        style={{ transform: openSlotDropdown === slotIndex ? 'rotate(180deg)' : 'none' }}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </button>
 
-                                        {/* DROPDOWN MENU OVERLAY */}
-                                        {isVersionDropdownOpen && (
-                                            <>
-                                                <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsVersionDropdownOpen(false)}></div>
-                                                <div className="absolute top-full left-0 mt-1 w-[450px] bg-white border border-gray-300 shadow-2xl rounded-sm max-h-[600px] overflow-y-auto z-50 flex flex-col">
+                                                {/* DROPDOWN LIST (Absolute) */}
+                                                {openSlotDropdown === slotIndex && (
+                                                    <div className="absolute top-full left-0 mt-0.5 w-[450px] z-50 bg-white border border-gray-300 shadow-xl rounded-b-md overflow-hidden flex flex-col max-h-[400px]">
+                                                        {/* LISTA */}
+                                                        <div className="overflow-y-auto flex-1 py-1">
+                                                            {(versions || [])
+                                                                .filter(v => !hiddenVersions.includes(String(v.id)))
+                                                                .filter((v, i, a) => v && v.id && a.findIndex(t => String(t.id) === String(v.id)) === i)
+                                                                .map(v => {
+                                                                    const isSelected = v.id === vId;
+                                                                    const isInstalled = (downloadedVersions || []).includes(String(v.id));
+                                                                    const safeAbbr = (v.abbreviation || '').toUpperCase();
+                                                                    let fullName = VERSION_FULL_NAMES[safeAbbr] || v.local_title || v.name || safeAbbr;
 
-                                                    {/* GROUP 2: ALL VERSIONS (ONLINE/OFFLINE) */}
-                                                    <div className="bg-gray-100 px-3 py-2 text-[10px] font-black text-gray-500 border-y border-gray-200 mt-0 sticky top-0">
-                                                        VERSÕES DISPONÍVEIS
+                                                                    return (
+                                                                        <button
+                                                                            key={v.id}
+                                                                            onClick={() => setSlotVersion(slotIndex, v.id)}
+                                                                            className={`
+                                                                                w-full px-4 py-1.5 text-left text-[11px] font-bold uppercase flex items-center justify-between transition-colors
+                                                                                ${isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}
+                                                                            `}
+                                                                        >
+                                                                            <div className="flex items-center overflow-hidden mr-2">
+                                                                                {/* Check Azul se Selecionado */}
+                                                                                <div className="w-5 flex-shrink-0 flex justify-center">
+                                                                                    {isSelected && <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                                                                                </div>
+                                                                                <span className="truncate">{fullName}</span>
+                                                                            </div>
+
+                                                                            <div className="ml-2 flex-shrink-0">
+                                                                                {downloadStatus.downloading && String(downloadStatus.currentId) === String(v.id) ? (
+                                                                                    // Progress Indicator
+                                                                                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100 min-w-[32px] text-center inline-block">
+                                                                                        {Math.round(downloadStatus.progress)}%
+                                                                                    </span>
+                                                                                ) : isInstalled ? (
+                                                                                    // Green Check Circle (Offline) - Clean
+                                                                                    <svg className="w-4 h-4 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                                                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                                                    </svg>
+                                                                                ) : (
+                                                                                    // Cloud Download (Online) - Clean
+                                                                                    <div
+                                                                                        className="text-gray-400 hover:text-blue-500 cursor-pointer p-0.5 rounded-full hover:bg-blue-50"
+                                                                                        onClick={(e) => { e.stopPropagation(); handleDownloadVersion(v.id); }}
+                                                                                        title="Baixar para Offline"
+                                                                                    >
+                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </button>
+                                                                    )
+                                                                })}
+                                                        </div>
                                                     </div>
-                                                    {(versions || [])
-                                                        .filter((v, i, a) => v && v.id && String(v.id) !== '1967' && a.findIndex(t => String(t.id) === String(v.id)) === i)
-                                                        .map(v => {
-                                                            try {
-                                                                const isInstalled = (downloadedVersions || []).includes(String(v.id));
-
-                                                                // Safe Access
-                                                                const safeAbbr = (v.abbreviation || '').toUpperCase();
-                                                                const safeName = v.name || '';
-                                                                const safeLocalTitle = v.local_title || '';
-                                                                const safeId = String(v.id);
-
-                                                                // Name Logic
-                                                                let fullName = VERSION_FULL_NAMES[safeAbbr] || VERSION_FULL_NAMES[safeId] || safeLocalTitle || safeName || safeAbbr || safeId;
-
-                                                                // Specific Overrides
-                                                                if (safeId === 'PORARA') fullName = 'Almeida Revista e Atualizada (Novo Testamento)';
-                                                                if (safeId === 'PORARC') fullName = 'Almeida Revista e Corrigida (Novo Testamento)';
-                                                                if (safeId === 'PORACF') fullName = 'Almeida Corrigida Fiel';
-                                                                if (safeId === 'PORBBS') fullName = 'Bíblia Sagrada (BBS)';
-                                                                if (safeId === '129') fullName = 'Nova Versão Internacional';
-                                                                if (safeId === '1967') fullName = 'O Livro';
-                                                                if (safeId === '4360') fullName = 'Nova Versão Internacional (PT)';
-                                                                if (safeId === '215') fullName = 'Almeida Corrigida Fiel (ACF- SBTB)';
-
-                                                                // Fallback for Numeric Names
-                                                                if (!isNaN(Number(fullName))) {
-                                                                    const tryAbbr = VERSION_FULL_NAMES[safeAbbr];
-                                                                    if (tryAbbr) {
-                                                                        fullName = tryAbbr;
-                                                                    } else if (safeAbbr) {
-                                                                        fullName = `${safeAbbr} (${safeId})`;
-                                                                    } else {
-                                                                        fullName = `Versão ${safeId}`;
-                                                                    }
-                                                                }
-
-                                                                const isDownloadingThis = downloadStatus.downloading && downloadStatus.currentId === v.id;
-
-                                                                return (
-                                                                    <div
-                                                                        key={v.id}
-                                                                        onClick={() => {
-                                                                            setCurrentVersion(v.id);
-                                                                            localStorage.setItem('bible_version', v.id);
-                                                                            setIsVersionDropdownOpen(false);
-                                                                        }}
-                                                                        className={`px-3 py-2 text-left text-[11px] font-bold uppercase transition border-b border-gray-100 flex justify-between items-center group cursor-pointer
-                                                                        ${currentVersion === v.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                                    >
-                                                                        <span>{fullName}</span>
-                                                                        <div className="flex items-center gap-2">
-                                                                            {isInstalled && <span className="text-green-500 font-bold text-xs bg-green-100 px-1 rounded">INSTALADA ✓</span>}
-
-                                                                            {!isInstalled && (
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        handleDownloadVersion(v.id);
-                                                                                    }}
-                                                                                    disabled={downloadStatus.downloading}
-                                                                                    className={`p-1.5 rounded-full hover:bg-gray-200 group-hover:block transition-all ${isDownloadingThis ? 'block' : 'text-gray-400 opacity-60 hover:text-green-600 hover:opacity-100'}`}
-                                                                                    title="Baixar para Offline"
-                                                                                >
-                                                                                    {isDownloadingThis ? (
-                                                                                        <span className="text-[9px] font-mono text-blue-600 animate-pulse">{Math.round(downloadStatus.progress)}%</span>
-                                                                                    ) : (
-                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                                                                    )}
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            } catch (err) {
-                                                                return null;
-                                                            }
-                                                        })}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
