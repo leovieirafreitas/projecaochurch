@@ -55,9 +55,8 @@ const getCacheBustedUrl = (url: string | null | undefined, version: number) => {
     return `${url}${url.includes('?') ? '&' : '?'}v=${version}`;
 };
 
-// --- MANAGED BACKGROUND (V96 - Cache Otimizado) ---
+// --- MANAGED BACKGROUND (V114 Blob Strategy) ---
 // Ensures GIF reset without re-downloading (Zero Lag)
-// OTIMIZAÇÃO: Cache de Blob evita conversões repetidas
 const ManagedBackgroundImage = ({ src, resetTrigger, className, onMouseDown }: {
     src: string;
     resetTrigger: number;
@@ -67,9 +66,6 @@ const ManagedBackgroundImage = ({ src, resetTrigger, className, onMouseDown }: {
     const [displayUrl, setDisplayUrl] = useState<string>('');
     const blobRef = useRef<Blob | null>(null);
     const lastSrcRef = useRef<string>('');
-
-    // V96: CACHE GLOBAL de Blobs (evita conversão repetida do mesmo GIF)
-    const blobCache = useRef<Map<string, Blob>>(new Map());
 
     useEffect(() => {
         let activeUrl = '';
@@ -90,49 +86,32 @@ const ManagedBackgroundImage = ({ src, resetTrigger, className, onMouseDown }: {
 
             // Get or create blob
             if (!blobRef.current) {
-                // V96: CACHE CHECK - Usa hash do src como chave
-                const cacheKey = src.startsWith('data:')
-                    ? src.substring(0, 100) // Primeiros 100 chars do Base64
-                    : src;
-
-                if (blobCache.current.has(cacheKey)) {
-                    // HIT: Blob já foi convertido antes, reutiliza!
-                    blobRef.current = blobCache.current.get(cacheKey)!;
-                } else {
-                    // MISS: Precisa converter
-                    if (src.startsWith('data:')) {
-                        // Convert Base64 to Blob
-                        try {
-                            const parts = src.split(',');
-                            if (parts.length === 2) {
-                                const mime = parts[0].split(':')[1].split(';')[0];
-                                const byteString = atob(parts[1]);
-                                const ab = new ArrayBuffer(byteString.length);
-                                const ia = new Uint8Array(ab);
-                                for (let i = 0; i < byteString.length; i++) {
-                                    ia[i] = byteString.charCodeAt(i);
-                                }
-                                blobRef.current = new Blob([ab], { type: mime });
-                                if (blobRef.current) {
-                                    blobCache.current.set(cacheKey, blobRef.current);
-                                }
+                if (src.startsWith('data:')) {
+                    // Convert Base64 to Blob
+                    try {
+                        const parts = src.split(',');
+                        if (parts.length === 2) {
+                            const mime = parts[0].split(':')[1].split(';')[0];
+                            const byteString = atob(parts[1]);
+                            const ab = new ArrayBuffer(byteString.length);
+                            const ia = new Uint8Array(ab);
+                            for (let i = 0; i < byteString.length; i++) {
+                                ia[i] = byteString.charCodeAt(i);
                             }
-                        } catch (e) {
-                            console.error('Failed to convert Base64 to Blob:', e);
+                            blobRef.current = new Blob([ab], { type: mime });
                         }
-                    } else if (!src.startsWith('blob:')) {
-                        // Fetch URL to get Blob
-                        try {
-                            const res = await fetch(src);
-                            if (res.ok) {
-                                blobRef.current = await res.blob();
-                                if (blobRef.current) {
-                                    blobCache.current.set(cacheKey, blobRef.current);
-                                }
-                            }
-                        } catch (e) {
-                            console.error('Failed to fetch image:', e);
+                    } catch (e) {
+                        console.error('Failed to convert Base64 to Blob:', e);
+                    }
+                } else if (!src.startsWith('blob:')) {
+                    // Fetch URL to get Blob
+                    try {
+                        const res = await fetch(src);
+                        if (res.ok) {
+                            blobRef.current = await res.blob();
                         }
+                    } catch (e) {
+                        console.error('Failed to fetch image:', e);
                     }
                 }
             }
@@ -805,52 +784,33 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                 .anim-slide-down { animation-name: slideDown; }
             `}</style>
 
-            {/* TOP BAR - CLEAN TEXT VERSION */}
-            <div className="h-10 bg-[#1a1a1a] border-b border-[#333] flex items-center justify-between px-4 shrink-0 shadow-sm z-50 font-sans">
+            {/* TOP BAR */}
+            <div className="h-14 bg-[#202020] border-b border-[#333] flex items-center justify-between px-6 shrink-0 shadow-sm z-50">
                 <div className="flex items-center gap-4">
-                    {/* Botão Carregar Imagem - Texto Clean */}
-                    <label className="text-xs font-medium text-gray-400 hover:text-white cursor-pointer transition select-none flex items-center gap-2 hover:bg-[#252525] px-2 py-1 rounded">
-                        CARREGAR IMAGEM
+                    <label className="group flex items-center gap-2 text-[10px] font-bold text-gray-400 hover:text-white cursor-pointer transition-colors select-none uppercase tracking-wider">
+                        CARREGAR FUNDO
                         <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                     </label>
-
-                    {/* Botão Remover Fundo - Texto Clean (só aparece se tiver fundo) */}
                     {background && (
-                        <button
-                            onClick={() => setBackground(null)}
-                            className="text-xs font-medium text-red-400/80 hover:text-red-300 transition select-none hover:bg-[#252525] px-2 py-1 rounded"
-                        >
-                            REMOVER FUNDO
-                        </button>
+                        <>
+                            <div className="w-[1px] h-3 bg-[#444] mx-2"></div>
+                            <button onClick={() => setBackground(null)} className="text-[10px] font-bold text-gray-500 hover:text-red-500 transition-colors uppercase tracking-wider" title="Apagar Fundo">
+                                APAGAR FUNDO
+                            </button>
+                        </>
                     )}
                 </div>
-
-                {/* Recomendação Central */}
-                <div className="text-[10px] font-medium text-gray-600 uppercase tracking-widest select-none hidden sm:block">
-                    Recomendação: Imagem e Gifs
-                </div>
-
                 <div className="flex items-center gap-4">
-                    {/* Toggle Guias - Texto ON/OFF Clean */}
-                    <button
-                        onClick={() => setShowGuides(!showGuides)}
-                        className={`text-xs font-medium transition select-none px-2 py-1 rounded hover:bg-[#252525] ${showGuides ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                        GUIAS: {showGuides ? 'ON' : 'OFF'}
+                    <button onClick={() => setShowGuides(!showGuides)} className={`text-[10px] font-bold transition-colors uppercase tracking-wider ${showGuides ? 'text-blue-500' : 'text-gray-500 hover:text-gray-300'}`}>
+                        GUIAS {showGuides ? 'ON' : 'OFF'}
                     </button>
-
-                    {/* Botão Fechar - Texto Clean (SEM VERMELHO, SEM X) */}
-                    <button
-                        onClick={onClose}
-                        className="text-xs font-medium text-gray-500 hover:text-white transition select-none hover:bg-[#252525] px-2 py-1 rounded"
-                    >
-                        FECHAR
-                    </button>
+                    <div className="w-px h-4 bg-[#333]"></div>
+                    <button onClick={onClose} className="text-xs font-bold text-gray-500 hover:text-red-500 transition-colors tracking-wide px-2">FECHAR</button>
                 </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 flex flex-col items-center justify-center bg-[#111] relative overflow-hidden" ref={containerRef}>
+                <div className="flex-1 flex flex-col items-center justify-center bg-[#181818] relative overflow-hidden" ref={containerRef}>
                     <div className="shadow-2xl overflow-hidden relative" style={{
                         width: VIRTUAL_WIDTH, height: VIRTUAL_HEIGHT, transform: `scale(${scale})`,
                         backgroundColor: backgroundColor === 'transparent' ? 'transparent' : backgroundColor,
@@ -956,45 +916,24 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                         )}
                     </div>
 
-                    {/* Play Button - Clean Version */}
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
+                    {/* Play Button - Always Visible as requested */}
+                    {/* Play Button - Always Visible as requested */}
+                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50">
                         <button
                             onClick={() => {
                                 console.log("Play clicked - Resetting GIF...");
+                                // Reset via Key
                                 setBgVersion(v => v + 1);
+                                // Send projection data (Handled by Effect now)
                             }}
-                            className="bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-full p-3 shadow-lg hover:shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center group backdrop-blur-sm"
+                            className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-full p-4 shadow-lg transition-transform active:scale-95 flex items-center justify-center group"
                             title="Reiniciar Mídia e Projetar"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="translate-x-0.5 group-active:animate-ping">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" className="translate-x-0.5 group-active:animate-ping">
                                 <path d="M8 5v14l11-7z" />
                             </svg>
                         </button>
                     </div>
-
-                    {/* Slides Preview - Text Only (Clean Version) */}
-                    {slides.length > 1 && (
-                        <div className="absolute bottom-0 left-0 w-full bg-[#151515]/95 border-t border-[#333] backdrop-blur flex justify-center py-2 z-40">
-                            <div className="flex gap-2 max-w-full overflow-x-auto px-4 no-scrollbar">
-                                {slides.map((slide, i) => (
-                                    <div
-                                        key={i}
-                                        onClick={() => setCurrentSlideIndex(i)}
-                                        className={`
-                                            min-w-[100px] max-w-[140px] h-14 rounded border cursor-pointer 
-                                            flex items-center justify-center p-2 text-center text-[10px] leading-tight select-none transition
-                                            ${currentSlideIndex === i
-                                                ? 'bg-[#222] border-blue-500/50 text-blue-200'
-                                                : 'bg-transparent border-[#333] text-gray-500 hover:border-[#444] hover:text-gray-400'
-                                            }
-                                        `}
-                                    >
-                                        <span className="line-clamp-3 opacity-90">{slide}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* --- RIGHT SIDEBAR --- */}
@@ -1315,7 +1254,10 @@ export default function BibleProjection({ verseText, reference, onClose, storage
 
             {/* SLIDES BAR */}
             <div className="h-28 bg-[#181818] border-t border-[#333] flex items-center gap-4 px-4 overflow-x-auto custom-scrollbar z-40">
-                <span className="text-[10px] font-bold text-gray-500 sticky left-0 bg-[#181818] px-2 uppercase shrink-0">Slides ({slides.length})</span>
+                <div className="sticky left-0 bg-[#181818]/95 backdrop-blur-sm px-3 flex flex-col justify-center shrink-0 border-r border-[#333] h-full z-10 min-w-[100px]">
+                    <span className="text-xs font-bold text-blue-400 uppercase leading-tight mb-1">{reference}</span>
+                    <span className="text-[9px] font-medium text-gray-600 uppercase tracking-widest">{slides.length} SLIDES</span>
+                </div>
                 {slides.map((s, idx) => (
                     <div key={idx} onClick={() => setCurrentSlideIndex(idx)} className={`shrink-0 w-40 h-20 rounded border-2 cursor-pointer relative overflow-hidden transition ${currentSlideIndex === idx ? 'border-blue-500' : 'border-[#333]'}`}>
                         <div className="absolute inset-0 bg-black" style={{ backgroundColor }}>{background && <img src={background} className="w-full h-full object-cover opacity-60" />}</div>
