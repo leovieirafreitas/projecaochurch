@@ -11,7 +11,7 @@ import { useProjectionSync } from '../hooks/useProjectionSync';
 import MenuBar from './MenuBar';
 import { StorageHelper } from '../lib/storage-helper';
 
-import { BOOK_GROUPS, BIBLE_BOOKS_DATA, VERSION_FULL_NAMES, NT_ONLY_VERSIONS, OLD_TESTAMENT_BOOKS, cleanText } from '../lib/bible-data';
+import { BOOK_GROUPS, BIBLE_BOOKS_DATA, VERSION_FULL_NAMES, NT_ONLY_VERSIONS, OLD_TESTAMENT_BOOKS, cleanText, getBookName, getBookAbbr } from '../lib/bible-data';
 
 
 const PreviewContent = ({ style, currentText, reference }: { style: any, currentText: string, reference: string }) => {
@@ -466,6 +466,7 @@ export default function BibleSearch() {
 
     useEffect(() => {
         const handleQuickSearchKey = async (e: KeyboardEvent) => {
+            const currentVersionObj = versions.find(v => v.id === currentVersion);
             // Ignore if typing in input fields
             const target = e.target as HTMLElement;
             if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
@@ -484,11 +485,17 @@ export default function BibleSearch() {
 
             // If modal is NOT visible, check for letter keys to open it
             if (!quickSearch.visible) {
+                // IGNORAR SE TIVER CTRL/SHIFT/ALT (Evita abrir ao usar atalhos como Ctrl+S, Ctrl+C)
+                if (e.ctrlKey || e.altKey || e.metaKey) return;
 
                 if (e.key.length === 1 && /[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ]/.test(e.key)) {
                     e.preventDefault();
                     const char = e.key.toUpperCase();
-                    const bookList = Object.entries(BIBLE_BOOKS_DATA).map(([id, data]) => ({ id, ...data }));
+                    const bookList = Object.entries(BIBLE_BOOKS_DATA).map(([id, data]) => ({
+                        id,
+                        ...data,
+                        name: getBookName(id, currentVersionObj?.lang)
+                    }));
                     const isNtOnly = NT_ONLY_VERSIONS.includes(currentVersion) || currentVersion === 'PORARA' || currentVersion === 'PORARC';
                     let availableBooks = bookList;
                     if (isNtOnly) {
@@ -548,7 +555,11 @@ export default function BibleSearch() {
                     if (newInput === '') {
                         setQuickSearch(prev => ({ ...prev, visible: false, input: '', error: '' }));
                     } else {
-                        const bookList = Object.entries(BIBLE_BOOKS_DATA).map(([id, data]) => ({ id, ...data }));
+                        const bookList = Object.entries(BIBLE_BOOKS_DATA).map(([id, data]) => ({
+                            id,
+                            ...data,
+                            name: getBookName(id, currentVersionObj?.lang)
+                        }));
                         const match = bookList.find(b =>
                             normalizeText(b.name).startsWith(normalizeText(newInput)) ||
                             normalizeText(b.abbr).startsWith(normalizeText(newInput))
@@ -592,7 +603,11 @@ export default function BibleSearch() {
                 } else if (e.key.length === 1 && /[a-zA-Z0-9áàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ]/.test(e.key)) {
                     e.preventDefault();
                     const newInput = quickSearch.input + e.key.toUpperCase();
-                    const bookList = Object.entries(BIBLE_BOOKS_DATA).map(([id, data]) => ({ id, ...data }));
+                    const bookList = Object.entries(BIBLE_BOOKS_DATA).map(([id, data]) => ({
+                        id,
+                        ...data,
+                        name: getBookName(id, currentVersionObj?.lang)
+                    }));
                     const isNtOnly = NT_ONLY_VERSIONS.includes(currentVersion) || currentVersion === 'PORARA' || currentVersion === 'PORARC';
                     let availableBooks = bookList;
                     if (isNtOnly) {
@@ -829,13 +844,15 @@ export default function BibleSearch() {
                                     }
 
                                     if (found && verseText) {
-                                        // Clean verse number if still present at start
-                                        const cleanText = verseText.replace(/^\d+\s*/, '').replace(/\s+/g, ' ').trim();
-                                        const bookName = BIBLE_BOOKS_DATA[bookId]?.name || bookId;
+                                        // Clean verse text using global cleanText (removes Strongs)
+                                        const finalText = cleanText(verseText.replace(/^\d+\s*/, ''));
+
+                                        const currentVersionObj = versions.find(v => v.id === currentVersion);
+                                        const bookName = getBookName(bookId, currentVersionObj?.lang);
                                         const ref = `${bookName} ${chapter}:${verseNum}`;
 
                                         setActiveSlide({
-                                            text: cleanText,
+                                            text: finalText,
                                             ref,
                                             copyright: result.copyright || ''
                                         });
@@ -1440,11 +1457,12 @@ export default function BibleSearch() {
 
     const projectVerse = (v: { num: number, text: string }) => {
         if (v.num === 0) return;
-        const bookName = BIBLE_BOOKS_DATA[selectedBookId]?.name || selectedBookId;
+        const currentVersionObj = versions.find(v => v.id === currentVersion);
+        const bookName = getBookName(selectedBookId, currentVersionObj?.lang);
         const chapNum = selectedChapterId.split('.')[1] || selectedChapterId;
         const ref = `${bookName} ${chapNum}:${v.num}`;
         // Remove verse numbers from text (e.g., "22 E Obede..." -> "E Obede...")
-        const cleanedText = v.text.replace(/^\d+\s*/, '').trim();
+        const cleanedText = cleanText(v.text.replace(/^\d+\s*/, ''));
 
         setActiveSlide({ text: cleanedText, ref, copyright: currentCopyright });
         setIsProjectionVisible(true);
@@ -1509,8 +1527,9 @@ export default function BibleSearch() {
                 }
             }
 
-            // Blank Screen (B key or Escape) - Professional Feature
-            if (e.key === 'b' || e.key === 'B' || e.key === 'Escape') {
+            // Blank Screen (B key) - Legacy / Manual
+            // Note: 'Escape' removed as per user request (only closes modals)
+            if (e.key === 'b' || e.key === 'B') {
                 e.preventDefault();
                 setIsProjectionVisible(prev => !prev);
             }
@@ -1518,6 +1537,81 @@ export default function BibleSearch() {
         window.addEventListener('keydown', handleKeys);
         return () => window.removeEventListener('keydown', handleKeys);
     }, [slideParts.length, currentPartIndex]);
+
+    // --- CUSTOM SHORTCUTS ---
+    const [customShortcuts, setCustomShortcuts] = useState<any[]>([]);
+
+    useEffect(() => {
+        const load = () => {
+            const saved = localStorage.getItem('bible_custom_shortcuts');
+            if (saved) {
+                try { setCustomShortcuts(JSON.parse(saved)); } catch (e) { }
+            } else {
+                // Defaults se não existir
+                setCustomShortcuts([
+                    { action: 'nextVerse', key: 'F2' },
+                    { action: 'prevVerse', key: 'F1' },
+                    { action: 'clearScreen', key: 'F3' }
+                ]);
+            }
+        };
+        load();
+        const handler = (e: any) => setCustomShortcuts(e.detail);
+        window.addEventListener('bible-shortcuts-updated', handler);
+        return () => window.removeEventListener('bible-shortcuts-updated', handler);
+    }, []);
+
+    useEffect(() => {
+        const handleCustomKeys = (e: KeyboardEvent) => {
+            if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+            // Allow stopping projection even if activeSlide is null (to clear screen)
+            // But next/prev require activeSlide.
+
+            let keyPressed = e.key;
+            if (keyPressed === ' ') keyPressed = 'Space';
+
+            // Normalizar para comparação
+            const shortcut = customShortcuts.find(s => s.key.toUpperCase() === keyPressed.toUpperCase());
+
+            if (!shortcut) return;
+
+            if (shortcut.action === 'clearScreen') {
+                e.preventDefault();
+                setIsProjectionVisible(prev => !prev);
+                return;
+            }
+
+            if (!activeSlide || !activeSlide.ref) return;
+
+            if (shortcut.action === 'nextVerse' || shortcut.action === 'prevVerse') {
+                e.preventDefault();
+
+                // Parse current verse number from ref (Ex: "Gênesis 1:1" -> 1)
+                const parts = activeSlide.ref.split(':');
+                const currentNum = parseInt(parts[parts.length - 1]);
+                if (isNaN(currentNum)) return;
+
+                // Find index in previewVerses
+                const idx = previewVerses.findIndex(v => v.num === currentNum);
+                if (idx === -1) return;
+
+                let targetIndex = idx;
+                if (shortcut.action === 'nextVerse') targetIndex = idx + 1;
+                else targetIndex = idx - 1;
+
+                if (targetIndex >= 0 && targetIndex < previewVerses.length) {
+                    projectVerse(previewVerses[targetIndex]);
+                    // Auto-scroll to keep visible in grid?
+                    // Optional: document.getElementById(`verse-${previewVerses[targetIndex].num}`)?.scrollIntoView({ block: 'center' });
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleCustomKeys);
+        return () => window.removeEventListener('keydown', handleCustomKeys);
+    }, [customShortcuts, activeSlide, previewVerses, selectedBookId, selectedChapterId, currentCopyright]);
+
+
 
     const previewContainerRef = useRef<HTMLDivElement>(null);
 
@@ -1571,8 +1665,8 @@ export default function BibleSearch() {
     }, []);
 
     const toggleFavorite = (v: { num: number, text: string }) => {
-        const bookObj = BIBLE_BOOKS_DATA[selectedBookId];
-        const bookName = bookObj ? bookObj.name : selectedBookId;
+        const currentVersionObj = versions.find(v => v.id === currentVersion);
+        const bookName = getBookName(selectedBookId, currentVersionObj?.lang);
         const chapNum = selectedChapterId.includes('.') ? selectedChapterId.split('.')[1] : selectedChapterId;
         const verseRef = `${bookName} ${chapNum}:${v.num}`; // Ex: João 3:16
 
@@ -1640,7 +1734,7 @@ export default function BibleSearch() {
                                 {/* LINHA 1: TÍTULO DO LIVRO (Centralizado, Grande) */}
                                 <div className="p-2 flex items-center justify-center border-b border-gray-200 bg-white">
                                     <h2 className="font-bold text-lg text-gray-800 tracking-tight">
-                                        {BIBLE_BOOKS_DATA[selectedBookId]?.name} <span className="text-gray-500 font-medium">{selectedChapterId.split('.')[1] || ''}</span>
+                                        {getBookName(selectedBookId, versions.find(v => v.id === currentVersion)?.lang)} <span className="text-gray-500 font-medium">{selectedChapterId.split('.')[1] || ''}</span>
                                     </h2>
                                 </div>
 
@@ -1702,12 +1796,15 @@ export default function BibleSearch() {
                                                 {/* DROPDOWN LIST (Absolute) */}
                                                 {openSlotDropdown === slotIndex && (
                                                     <div className="absolute top-full left-0 mt-0.5 w-[450px] z-50 bg-white border border-gray-300 shadow-xl rounded-b-md overflow-hidden flex flex-col max-h-[400px]">
-                                                        {/* LISTA */}
-                                                        <div className="overflow-y-auto flex-1 py-1">
-                                                            {(versions || [])
-                                                                .filter(v => !hiddenVersions.includes(String(v.id)))
-                                                                .filter((v, i, a) => v && v.id && a.findIndex(t => String(t.id) === String(v.id)) === i)
-                                                                .map(v => {
+                                                        {/* LISTA DE VERSÕES (AGRUPADA) */}
+                                                        <div className="overflow-y-auto flex-1 py-0 scrollbar-thin scrollbar-thumb-gray-200">
+                                                            {(() => {
+                                                                const visibleVersions = (versions || [])
+                                                                    .filter(v => !hiddenVersions.includes(String(v.id)))
+                                                                    .filter((v, i, a) => v && v.id && a.findIndex(t => String(t.id) === String(v.id)) === i);
+
+                                                                // Helper to render Item
+                                                                const renderVersionItem = (v: any) => {
                                                                     const isSelected = v.id === vId;
                                                                     const isInstalled = (downloadedVersions || []).includes(String(v.id));
                                                                     const safeAbbr = (v.abbreviation || '').toUpperCase();
@@ -1718,12 +1815,11 @@ export default function BibleSearch() {
                                                                             key={v.id}
                                                                             onClick={() => setSlotVersion(slotIndex, v.id)}
                                                                             className={`
-                                                                                w-full px-4 py-1.5 text-left text-[11px] font-bold uppercase flex items-center justify-between transition-colors
+                                                                                w-full px-4 py-2 text-left text-[11px] font-bold uppercase flex items-center justify-between transition-colors border-b border-gray-50
                                                                                 ${isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}
                                                                             `}
                                                                         >
                                                                             <div className="flex items-center overflow-hidden mr-2">
-                                                                                {/* Check Azul se Selecionado */}
                                                                                 <div className="w-5 flex-shrink-0 flex justify-center">
                                                                                     {isSelected && <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
                                                                                 </div>
@@ -1732,19 +1828,16 @@ export default function BibleSearch() {
 
                                                                             <div className="ml-2 flex-shrink-0">
                                                                                 {downloadStatus.downloading && String(downloadStatus.currentId) === String(v.id) ? (
-                                                                                    // Progress Indicator
-                                                                                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100 min-w-[32px] text-center inline-block">
+                                                                                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100 min-w-[32px] text-center inline-block">
                                                                                         {Math.round(downloadStatus.progress)}%
                                                                                     </span>
                                                                                 ) : isInstalled ? (
-                                                                                    // Green Check Circle (Offline) - Clean
-                                                                                    <svg className="w-4 h-4 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                                                                                    <svg className="w-4 h-4 text-green-500/70" viewBox="0 0 20 20" fill="currentColor">
                                                                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                                                     </svg>
                                                                                 ) : (
-                                                                                    // Cloud Download (Online) - Clean
                                                                                     <div
-                                                                                        className="text-gray-400 hover:text-blue-500 cursor-pointer p-0.5 rounded-full hover:bg-blue-50"
+                                                                                        className="text-gray-300 hover:text-blue-500 cursor-pointer p-1 rounded-full hover:bg-blue-50 transition-colors"
                                                                                         onClick={(e) => { e.stopPropagation(); handleDownloadVersion(v.id); }}
                                                                                         title="Baixar para Offline"
                                                                                     >
@@ -1753,8 +1846,52 @@ export default function BibleSearch() {
                                                                                 )}
                                                                             </div>
                                                                         </button>
-                                                                    )
-                                                                })}
+                                                                    );
+                                                                };
+
+                                                                // Groups
+                                                                const pt = visibleVersions.filter(v => !v.lang || v.lang.toLowerCase().startsWith('pt'));
+                                                                const en = visibleVersions.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+                                                                const es = visibleVersions.filter(v => v.lang && v.lang.toLowerCase().startsWith('es'));
+                                                                const other = visibleVersions.filter(v => v.lang && !v.lang.toLowerCase().startsWith('pt') && !v.lang.toLowerCase().startsWith('en') && !v.lang.toLowerCase().startsWith('es'));
+
+                                                                return (
+                                                                    <>
+                                                                        {pt.length > 0 && (
+                                                                            <div className="relative">
+                                                                                <div className="sticky top-0 z-10 bg-gray-100/95 backdrop-blur-sm px-4 py-1.5 text-[10px] uppercase font-bold text-gray-500 border-b border-gray-200 shadow-sm">
+                                                                                    Português
+                                                                                </div>
+                                                                                {pt.map(renderVersionItem)}
+                                                                            </div>
+                                                                        )}
+                                                                        {en.length > 0 && (
+                                                                            <div className="relative">
+                                                                                <div className="sticky top-0 z-10 bg-gray-100/95 backdrop-blur-sm px-4 py-1.5 text-[10px] uppercase font-bold text-gray-500 border-b border-gray-200 shadow-sm border-t mt-0">
+                                                                                    English
+                                                                                </div>
+                                                                                {en.map(renderVersionItem)}
+                                                                            </div>
+                                                                        )}
+                                                                        {es.length > 0 && (
+                                                                            <div className="relative">
+                                                                                <div className="sticky top-0 z-10 bg-gray-100/95 backdrop-blur-sm px-4 py-1.5 text-[10px] uppercase font-bold text-gray-500 border-b border-gray-200 shadow-sm border-t mt-0">
+                                                                                    Español
+                                                                                </div>
+                                                                                {es.map(renderVersionItem)}
+                                                                            </div>
+                                                                        )}
+                                                                        {other.length > 0 && (
+                                                                            <div className="relative">
+                                                                                <div className="sticky top-0 z-10 bg-gray-100/95 backdrop-blur-sm px-4 py-1.5 text-[10px] uppercase font-bold text-gray-500 border-b border-gray-200 shadow-sm border-t mt-0">
+                                                                                    Outros
+                                                                                </div>
+                                                                                {other.map(renderVersionItem)}
+                                                                            </div>
+                                                                        )}
+                                                                    </>
+                                                                );
+                                                            })()}
                                                         </div>
                                                     </div>
                                                 )}
@@ -1768,7 +1905,7 @@ export default function BibleSearch() {
                                 {previewVerses.length > 0 ? (
                                     previewVerses.map(v => {
                                         const bookObj = BIBLE_BOOKS_DATA[selectedBookId];
-                                        const bookName = bookObj ? bookObj.name : selectedBookId;
+                                        const bookName = getBookName(selectedBookId, versions.find(v => v.id === currentVersion)?.lang);
                                         const chapNum = selectedChapterId.includes('.') ? selectedChapterId.split('.')[1] : selectedChapterId;
                                         const verseRef = `${bookName} ${chapNum}:${v.num}`;
 
@@ -1788,7 +1925,7 @@ export default function BibleSearch() {
                                                     onClick={() => projectVerse(v)}
                                                 >
                                                     <span className={`text-xs font-bold w-6 pt-0.5 text-right shrink-0 ${isSelected ? 'text-white' : 'text-gray-400 group-hover:text-blue-500'}`}>{v.num}</span>
-                                                    <p className={`text-sm leading-snug flex-1 ${isSelected ? 'text-white font-semibold' : 'text-gray-600'}`}>{v.text}</p>
+                                                    <p className={`text-sm leading-snug flex-1 ${isSelected ? 'text-white font-semibold' : 'text-gray-600'}`}>{cleanText(v.text)}</p>
                                                 </div>
 
                                                 {/* FAVORITE BUTTON - LADO DIREITO, SEMPRE VISÍVEL */}
@@ -1895,16 +2032,19 @@ export default function BibleSearch() {
                                 if (filteredBooks.length === 0) return null;
 
                                 return filteredBooks.map(bookId => {
-                                    const info = BIBLE_BOOKS_DATA[bookId] || { name: bookId, abbr: bookId };
+                                    const currentVersionObj = versions.find(v => v.id === currentVersion);
+                                    const bookName = getBookName(bookId, currentVersionObj?.lang);
+                                    const bookAbbr = getBookAbbr(bookId, currentVersionObj?.lang);
+
                                     return (
                                         <button
                                             key={bookId}
                                             onClick={() => selectBook(bookId)}
                                             className={`${group.color} text-white w-full h-full flex flex-col border border-black/20 items-center justify-center hover:brightness-110 active:brightness-90 transition-all ${selectedBookId === bookId ? 'ring-2 ring-white z-10 shadow-lg relative' : 'opacity-95'}`}
-                                            title={info.name}
+                                            title={bookName}
                                         >
-                                            <span className="text-[13px] font-black leading-none mb-0.5 tracking-tighter">{info.abbr}</span>
-                                            <span className="text-[8px] uppercase font-bold opacity-90 leading-none truncate w-full text-center px-0.5 scale-95">{info.name}</span>
+                                            <span className="text-[13px] font-black leading-none mb-0.5 tracking-tighter">{bookAbbr}</span>
+                                            <span className="text-[8px] uppercase font-bold opacity-90 leading-none truncate w-full text-center px-0.5 scale-95">{bookName}</span>
                                         </button>
                                     );
                                 });
@@ -1949,7 +2089,8 @@ export default function BibleSearch() {
                                 <div className="grid h-full w-full gap-[1px] content-start" style={{ gridTemplateColumns: 'repeat(10, 1fr)', gridAutoRows: 'minmax(0, 1fr)' }}>
                                     {previewVerses.map(v => {
                                         // FIXED: Numeric Grid Highlight logic & Visual Borders
-                                        const bookName = BIBLE_BOOKS_DATA[selectedBookId]?.name || selectedBookId;
+                                        const currentVersionObj = versions.find(v => v.id === currentVersion);
+                                        const bookName = getBookName(selectedBookId, currentVersionObj?.lang);
                                         const chapNum = selectedChapterId.split('.')[1] || selectedChapterId;
                                         const verseRef = `${bookName} ${chapNum}:${v.num}`;
                                         const isSelected = activeSlide?.ref === verseRef;

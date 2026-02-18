@@ -531,8 +531,8 @@ export class YouVersionClient {
             verses.forEach((v: any) => {
                 const num = v.verse_start;
                 const text = v.verse_text;
-                // Remover quebras de linha estranhas
-                const cleanText = text.replace(/[\n\r]+/g, ' ').trim();
+                // Remover quebras de linha estranhas e Strongs
+                const cleanText = text.replace(/(\{[^}]+\}|<[^>]+>|\(+[HG]?\d+\)+|\[\d+\])/g, '').replace(/[\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
 
                 html += `<span class="verse" data-usfm="${passageId}.${num}">`;
                 html += `<span class="label">${num}</span>`;
@@ -584,7 +584,7 @@ export class YouVersionClient {
                     // <span class="verse" data-usfm="GEN.1.1"><span class="label">1</span><span class="content">Texto</span></span>
 
                     // Se o texto vier com quebras de linha, tratar
-                    const cleanText = v.text.replace(/[\n\r]+/g, ' ').trim();
+                    const cleanText = v.text.replace(/(\{[^}]+\}|<[^>]+>|\(+[HG]?\d+\)+|\[\d+\])/g, '').replace(/[\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
 
                     html += `<span class="verse" data-usfm="${passageId}.${v.verse}">`;
                     html += `<span class="label">${v.verse}</span>`;

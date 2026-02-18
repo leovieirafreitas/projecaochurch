@@ -7,6 +7,7 @@ const ProjectionLinksModal = dynamic(() => import('./ProjectionLinksModal'), { s
 const NewProjectModal = dynamic(() => import('./NewProjectModal'), { ssr: false });
 const DownloadedBiblesModal = dynamic(() => import('./DownloadedBiblesModal'), { ssr: false });
 const MobileRemoteModal = dynamic(() => import('./MobileRemoteModal'), { ssr: false });
+const ShortcutsModal = dynamic(() => import('./ShortcutsModal'), { ssr: false });
 
 // CONSTANTES DE NOME (Mapeamento manual para garantir nomes bonitos no menu)
 const VERSION_FULL_NAMES: Record<string, string> = {
@@ -35,6 +36,58 @@ const VERSION_FULL_NAMES: Record<string, string> = {
 
 export default function MenuBar() {
     const { sendState } = useProjectionSync('sender');
+
+    // Helper para renderizar menus de versão agrupados
+    const renderVersionMenuBlock = (slotIndex: number, buttonLabel: string, headerLabel: string) => {
+        const visibleVersions = versions.filter(v => !hiddenVersions.includes(String(v.id)));
+
+        const renderItem = (v: any) => {
+            const isSelected = String(activeSlots[slotIndex]) === String(v.id);
+            const label = VERSION_FULL_NAMES[v.abbreviation?.toUpperCase()] || v.name || v.id;
+            return (
+                <button
+                    key={v.id}
+                    className={`w-full px-4 py-1.5 text-left text-[11px]  hover:bg-[#007acc] hover:text-white border-b border-[#444] uppercase flex items-center justify-between ${isSelected ? 'text-blue-400 font-bold bg-[#333]' : ''}`}
+                    onClick={() => {
+                        window.dispatchEvent(new CustomEvent('bible-set-slot-version', { detail: { slot: slotIndex, version: v.id } }));
+                        closeAll();
+                    }}
+                >
+                    <span className="truncate mr-2">{label}</span>
+                    {isSelected && <span className="text-blue-500">✔</span>}
+                </button>
+            );
+        };
+
+        const pt = visibleVersions.filter(v => !v.lang || v.lang.toLowerCase().startsWith('pt'));
+        const en = visibleVersions.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+        const es = visibleVersions.filter(v => v.lang && v.lang.toLowerCase().startsWith('es'));
+        const other = visibleVersions.filter(v => v.lang && !v.lang.toLowerCase().startsWith('pt') && !v.lang.toLowerCase().startsWith('en') && !v.lang.toLowerCase().startsWith('es'));
+
+        return (
+            <div className="relative group/item">
+                <button className="w-full text-left px-4 py-2 hover:bg-[#007acc] hover:text-white flex items-center justify-between">
+                    <span className="flex items-center gap-2"><span className="text-gray-400 text-xs">↔</span> {buttonLabel}</span>
+                    <span className="text-xs">▶</span>
+                </button>
+                <div className="absolute left-full top-0 hidden group-hover/item:block bg-[#2d2d2d] text-gray-300 border border-[#111] shadow-xl w-[300px] max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600">
+                    <div className="bg-[#3d3d3d] px-3 py-2 text-[10px] font-bold text-gray-400 border-b border-[#444] sticky top-0 uppercase">{headerLabel}</div>
+
+                    {pt.length > 0 && <div className="bg-[#333] px-3 py-1 text-[9px] font-bold text-gray-500 border-b border-[#444] border-t border-gray-700">PORTUGUÊS</div>}
+                    {pt.map(renderItem)}
+
+                    {en.length > 0 && <div className="bg-[#333] px-3 py-1 text-[9px] font-bold text-gray-500 border-b border-[#444] border-t border-gray-700">ENGLISH</div>}
+                    {en.map(renderItem)}
+
+                    {es.length > 0 && <div className="bg-[#333] px-3 py-1 text-[9px] font-bold text-gray-500 border-b border-[#444] border-t border-gray-700">ESPAÑOL</div>}
+                    {es.map(renderItem)}
+
+                    {other.length > 0 && <div className="bg-[#333] px-3 py-1 text-[9px] font-bold text-gray-500 border-b border-[#444] border-t border-gray-700">OUTROS</div>}
+                    {other.map(renderItem)}
+                </div>
+            </div>
+        );
+    };
     const [showFileMenu, setShowFileMenu] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
     const [showLinksMenu, setShowLinksMenu] = useState(false);
@@ -46,6 +99,7 @@ export default function MenuBar() {
     const [showNewProjectModal, setShowNewProjectModal] = useState(false);
     const [showOfflineBiblesModal, setShowOfflineBiblesModal] = useState(false);
     const [showRemoteModal, setShowRemoteModal] = useState(false);
+    const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
     // Cache de Versões para o Menu
     // Cache de Versões para o Menu
@@ -147,6 +201,7 @@ export default function MenuBar() {
         setShowToolsMenu(false);
         setShowLinksMenu(false);
         setShowVersionMenu(false);
+        setShowShortcutsModal(false);
     };
 
     const handleExit = async () => {
@@ -292,89 +347,13 @@ export default function MenuBar() {
                             <div className="absolute top-8 left-0 bg-[#2d2d2d] text-gray-300 border border-[#111] shadow-xl min-w-[220px] py-1 flex flex-col z-50 text-sm font-sans">
 
                                 {/* ITEM: PADRÃO (Submenu) */}
-                                <div className="relative group/item">
-                                    <button className="w-full text-left px-4 py-2 hover:bg-[#007acc] hover:text-white flex items-center justify-between">
-                                        <span className="flex items-center gap-2"><span className="text-gray-400 text-xs">↔</span> Padrão</span>
-                                        <span className="text-xs">▶</span>
-                                    </button>
-                                    {/* SUBMENU LISTA BÍBLIAS (Padrão) */}
-                                    <div className="absolute left-full top-0 hidden group-hover/item:block bg-[#2d2d2d] text-gray-300 border border-[#111] shadow-xl w-[300px] max-h-[400px] overflow-y-auto">
-                                        <div className="bg-[#3d3d3d] px-3 py-2 text-[10px] font-bold text-gray-400 border-b border-[#444] sticky top-0">DEFINIR VERSÃO PADRÃO</div>
-                                        {versions
-                                            .filter(v => !hiddenVersions.includes(String(v.id)))
-                                            .map(v => {
-                                                const label = VERSION_FULL_NAMES[v.abbreviation?.toUpperCase()] || v.name || v.id;
-                                                const isSelected = String(activeSlots[0]) === String(v.id);
-                                                return (
-                                                    <button
-                                                        key={v.id}
-                                                        className={`w-full px-4 py-1.5 text-left text-[11px]  hover:bg-[#007acc] hover:text-white border-b border-[#444] uppercase flex items-center justify-between ${isSelected ? 'text-blue-400 font-bold bg-[#333]' : ''}`}
-                                                        onClick={() => {
-                                                            window.dispatchEvent(new CustomEvent('bible-set-slot-version', { detail: { slot: 0, version: v.id } }));
-                                                            closeAll();
-                                                        }}
-                                                    >
-                                                        <span className="truncate mr-2">{label}</span>
-                                                        {isSelected && <span className="text-blue-500">✔</span>}
-                                                    </button>
-                                                )
-                                            })}
-                                    </div>
-                                </div>
+                                {renderVersionMenuBlock(0, 'Padrão', 'DEFINIR VERSÃO PADRÃO')}
 
                                 {/* ITEM: AUX 1 (Submenu) */}
-                                <div className="relative group/item">
-                                    <button className="w-full text-left px-4 py-2 hover:bg-[#007acc] hover:text-white flex items-center justify-between">
-                                        <span className="flex items-center gap-2"><span className="text-gray-400 text-xs">↔</span> Alterar auxiliar 1</span>
-                                        <span className="text-xs">▶</span>
-                                    </button>
-                                    <div className="absolute left-full top-0 hidden group-hover/item:block bg-[#2d2d2d] text-gray-300 border border-[#111] shadow-xl w-[300px] max-h-[400px] overflow-y-auto">
-                                        <div className="bg-[#3d3d3d] px-3 py-2 text-[10px] font-bold text-gray-400 border-b border-[#444] sticky top-0">DEFINIR AUXILIAR 1</div>
-                                        {versions.filter(v => !hiddenVersions.includes(String(v.id))).map(v => {
-                                            const isSelected = String(activeSlots[1]) === String(v.id);
-                                            return (
-                                                <button
-                                                    key={v.id}
-                                                    className={`w-full px-4 py-1.5 text-left text-[11px] hover:bg-[#007acc] hover:text-white border-b border-[#444] uppercase flex items-center justify-between ${isSelected ? 'text-blue-400 font-bold bg-[#333]' : ''}`}
-                                                    onClick={() => {
-                                                        window.dispatchEvent(new CustomEvent('bible-set-slot-version', { detail: { slot: 1, version: v.id } }));
-                                                        closeAll();
-                                                    }}
-                                                >
-                                                    <span className="truncate mr-2">{VERSION_FULL_NAMES[v.abbreviation?.toUpperCase()] || v.name || v.id}</span>
-                                                    {isSelected && <span className="text-blue-500">✔</span>}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
+                                {renderVersionMenuBlock(1, 'Alterar auxiliar 1', 'DEFINIR AUXILIAR 1')}
 
                                 {/* ITEM: AUX 2 (Submenu) */}
-                                <div className="relative group/item">
-                                    <button className="w-full text-left px-4 py-2 hover:bg-[#007acc] hover:text-white flex items-center justify-between">
-                                        <span className="flex items-center gap-2"><span className="text-gray-400 text-xs">↔</span> Alterar auxiliar 2</span>
-                                        <span className="text-xs">▶</span>
-                                    </button>
-                                    <div className="absolute left-full top-0 hidden group-hover/item:block bg-[#2d2d2d] text-gray-300 border border-[#111] shadow-xl w-[300px] max-h-[400px] overflow-y-auto">
-                                        <div className="bg-[#3d3d3d] px-3 py-2 text-[10px] font-bold text-gray-400 border-b border-[#444] sticky top-0">DEFINIR AUXILIAR 2</div>
-                                        {versions.filter(v => !hiddenVersions.includes(String(v.id))).map(v => {
-                                            const isSelected = String(activeSlots[2]) === String(v.id);
-                                            return (
-                                                <button
-                                                    key={v.id}
-                                                    className={`w-full px-4 py-1.5 text-left text-[11px] hover:bg-[#007acc] hover:text-white border-b border-[#444] uppercase flex items-center justify-between ${isSelected ? 'text-blue-400 font-bold bg-[#333]' : ''}`}
-                                                    onClick={() => {
-                                                        window.dispatchEvent(new CustomEvent('bible-set-slot-version', { detail: { slot: 2, version: v.id } }));
-                                                        closeAll();
-                                                    }}
-                                                >
-                                                    <span className="truncate mr-2">{VERSION_FULL_NAMES[v.abbreviation?.toUpperCase()] || v.name || v.id}</span>
-                                                    {isSelected && <span className="text-blue-500">✔</span>}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
+                                {renderVersionMenuBlock(2, 'Alterar auxiliar 2', 'DEFINIR AUXILIAR 2')}
 
                                 <div className="my-1 border-b border-[#444]"></div>
 
@@ -456,6 +435,19 @@ export default function MenuBar() {
                     </div>
 
 
+
+                    {/* MENU ATALHOS (NOVO) */}
+                    <button
+                        className={`px-3 h-full hover:bg-[#3d3d3d] transition-colors flex items-center ${showShortcutsModal ? 'bg-[#3d3d3d] text-white' : ''}`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            closeAll();
+                            setShowShortcutsModal(true);
+                        }}
+                    >
+                        Atalhos
+                    </button>
+
                     {/* CANTO DIREITO: MODO MOBILE + PROJEÇÃO LOUVOR + VERSÃO */}
                     <div className="ml-auto flex items-center gap-3 pr-3">
                         {/* BOTÃO MODO MOBILE/DESKTOP */}
@@ -532,6 +524,9 @@ export default function MenuBar() {
 
             {/* MODAL REMOTE MOBILE */}
             {showRemoteModal && <MobileRemoteModal onClose={() => setShowRemoteModal(false)} />}
+
+            {/* MODAL ATALHOS */}
+            {showShortcutsModal && <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />}
 
 
         </>
