@@ -452,9 +452,21 @@ export default function MenuBar() {
 
                     {/* ✏️ DRAW PROJECTION (abre como página /draw) */}
                     <button
-                        className="px-3 h-full flex items-center gap-1.5 font-medium transition-colors hover:bg-[#3d3d3d] text-gray-300 hover:text-white"
-                        onClick={() => {
-                            window.open('/draw', '_blank');
+                        className={`px-3 h-full hover:bg-[#3d3d3d] transition-colors flex items-center gap-1.5`}
+                        onClick={async () => {
+                            if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+                                try {
+                                    const { invoke } = await import('@tauri-apps/api/tauri');
+                                    const ip = await invoke('get_local_ip');
+                                    // Port 4523 is standard for production build
+                                    window.open(`http://${ip}:4523/draw`, '_blank');
+                                } catch (e) {
+                                    console.error(e);
+                                    window.open('http://localhost:4523/draw', '_blank');
+                                }
+                            } else {
+                                window.open('/draw', '_blank');
+                            }
                         }}
                         title="Abrir ferramenta de desenho (nova aba)"
                     >

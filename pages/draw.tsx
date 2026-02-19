@@ -146,8 +146,9 @@ export default function DrawPage() {
     // ─── TEXT & LAYOUT ────────────────────────────────────────────────────────
     const fontSize = state.style?.fontSize ? parseInt(String(state.style.fontSize)) : 30;
     const textBox = state.style?.textBox || { w: 80, h: 40 };
-    const vWidth = 1024;
-    const vHeight = 576;
+    // UPDATE: Use 1920x1080 base to match standard projection and ensure font sizes/layout are identical
+    const vWidth = 1920;
+    const vHeight = 1080;
     const wPx = Math.max(10, ((textBox.w || 80) / 100) * vWidth - 40);
     const hPx = Math.max(10, ((textBox.h || 40) / 100) * vHeight - 20);
     const fontFamily = state.style?.fontFamily || 'Inter, sans-serif';
