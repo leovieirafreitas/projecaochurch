@@ -9,6 +9,7 @@ const DownloadedBiblesModal = dynamic(() => import('./DownloadedBiblesModal'), {
 const MobileRemoteModal = dynamic(() => import('./MobileRemoteModal'), { ssr: false });
 const ShortcutsModal = dynamic(() => import('./ShortcutsModal'), { ssr: false });
 
+
 // CONSTANTES DE NOME (Mapeamento manual para garantir nomes bonitos no menu)
 const VERSION_FULL_NAMES: Record<string, string> = {
     'ARA': 'Almeida Revista e Atualizada',
@@ -100,6 +101,7 @@ export default function MenuBar() {
     const [showOfflineBiblesModal, setShowOfflineBiblesModal] = useState(false);
     const [showRemoteModal, setShowRemoteModal] = useState(false);
     const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+
 
     // Cache de Versões para o Menu
     // Cache de Versões para o Menu
@@ -448,6 +450,20 @@ export default function MenuBar() {
                         Atalhos
                     </button>
 
+                    {/* ✏️ DRAW PROJECTION (abre como página /draw) */}
+                    <button
+                        className="px-3 h-full flex items-center gap-1.5 font-medium transition-colors hover:bg-[#3d3d3d] text-gray-300 hover:text-white"
+                        onClick={() => {
+                            window.open('/draw', '_blank');
+                        }}
+                        title="Abrir ferramenta de desenho (nova aba)"
+                    >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                        Draw
+                    </button>
+
                     {/* CANTO DIREITO: MODO MOBILE + PROJEÇÃO LOUVOR + VERSÃO */}
                     <div className="ml-auto flex items-center gap-3 pr-3">
                         {/* BOTÃO MODO MOBILE/DESKTOP */}
@@ -527,6 +543,8 @@ export default function MenuBar() {
 
             {/* MODAL ATALHOS */}
             {showShortcutsModal && <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />}
+
+
 
 
         </>

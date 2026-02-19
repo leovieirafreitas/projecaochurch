@@ -725,6 +725,8 @@ fn main() {
             // Register state in Tauri
             app.manage(shared_state);
 
+            let app_data_dir_clone = app_data_dir.clone(); // Clone for Actix thread
+
             // Iniciar servidor Web em thread separada
             std::thread::spawn(move || {
                 let sys = actix_web::rt::System::new();
@@ -736,11 +738,14 @@ fn main() {
                     // Tenta iniciar o servidor
                     let server_result = HttpServer::new(move || {
                         let static_files = static_path.clone(); 
+                        let data_dir = app_data_dir_clone.clone();
                         
                         // Prepare paths for clean URLs
                         let remote_path = static_path.join("remote.html");
                         let projection_path = static_path.join("projection.html");
-                        let projection_music_path = static_path.join("projection-music.html"); // ADDED
+                        let projection_music_path = static_path.join("projection-music.html");
+                        let draw_path = static_path.join("draw.html");
+                        let uploads_dir = data_dir.join("uploads");
 
                         App::new()
                             .wrap(actix_cors::Cors::permissive())
@@ -759,22 +764,26 @@ fn main() {
                                     .route(web::head().to(|| async { HttpResponse::Ok().finish() }))
                             )
                             
-                            // Explicit Clean URL Routing with Clone for each request (Safe for Actix)
+                            // SERVE UPLOADS
+                            .service(af::Files::new("/uploads", uploads_dir.clone()))
+
+                            // Explicit Routes for Clean URLs
                             .route("/remote", web::get().to(move || {
-                                let path = remote_path.clone(); // Clone inside handler
-                                async move { af::NamedFile::open_async(path).await }
+                                let path = remote_path.clone();
+                                async { af::NamedFile::open_async(path).await }
                             }))
                             .route("/projection", web::get().to(move || {
                                 let path = projection_path.clone();
-                                async move { af::NamedFile::open_async(path).await }
+                                async { af::NamedFile::open_async(path).await }
                             }))
                             .route("/projection-music", web::get().to(move || {
                                 let path = projection_music_path.clone();
-                                async move { af::NamedFile::open_async(path).await }
+                                async { af::NamedFile::open_async(path).await }
                             }))
-
-                            // SERVE UPLOADS
-                            .service(af::Files::new("/uploads", app_data_dir.clone().join("uploads")))
+                            .route("/draw", web::get().to(move || {
+                                let path = draw_path.clone(); 
+                                async { af::NamedFile::open_async(path).await }
+                            }))
 
                             // STATIC FILES FALLBACK
                             .service(af::Files::new("/", static_files).index_file("index.html"))
