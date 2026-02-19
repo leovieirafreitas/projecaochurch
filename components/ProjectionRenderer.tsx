@@ -21,6 +21,15 @@ export default function ProjectionRenderer({ state, currentText }: { state: any,
     }, [delay]);
 
     // Auto-Fit Hook (Moved from Parent)
+    const [fontLoaded, setFontLoaded] = useState(0);
+    useEffect(() => {
+        if (typeof document !== 'undefined' && (document as any).fonts) {
+            (document as any).fonts.ready.then(() => {
+                setFontLoaded(prev => prev + 1);
+            });
+        }
+    }, [state.style?.fontFamily]);
+
     useEffect(() => {
         if (!currentText) return;
         if (textRef.current && state.style?.fontSize) {
@@ -32,12 +41,13 @@ export default function ProjectionRenderer({ state, currentText }: { state: any,
 
             let currentSize = targetSize;
             // Reduce while overflowing
+            // Use clientHeight + 1 to account for subpixel rounding differences (V116)
             while (el.scrollHeight > el.clientHeight + 1 && currentSize > 10) {
                 currentSize--;
                 el.style.fontSize = `${currentSize}px`;
             }
         }
-    }, [currentText, state.style?.fontSize, state.style?.fontFamily, state.style?.fontWeight, state.style?.textBox, state.slideIndex]);
+    }, [currentText, state.style?.fontSize, state.style?.fontFamily, state.style?.fontWeight, state.style?.textBox, state.slideIndex, fontLoaded]);
 
     const isAdvanced = state.style?.isAdvancedLayout || state.style?.textBox;
 

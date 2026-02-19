@@ -5,9 +5,6 @@ const nextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
-    eslint: {
-        ignoreDuringBuilds: true,
-    },
 
     // Gera output estático apenas para build do Tauri
     output: isBuild ? 'export' : undefined,

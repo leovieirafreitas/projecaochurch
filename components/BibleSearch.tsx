@@ -1122,6 +1122,7 @@ export default function BibleSearch() {
                 verseText: shouldShow ? activeSlide.text : '',
                 reference: shouldShow ? activeSlide.ref : '',
                 copyright: shouldShow ? activeSlide.copyright : '',
+                slides: slideParts, // NOVA PROPRIEDADE: Envia cortes exatos do editor (V115)
                 slideIndex: currentPartIndex,
                 version: currentVersion,
                 style: styleToSync,

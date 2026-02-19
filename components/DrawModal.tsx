@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { splitTextGeometrically } from '../lib/text-utils';
 import { StorageHelper } from '../lib/storage-helper';
+import ProjectionRenderer from './ProjectionRenderer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DrawPath {
@@ -395,51 +396,13 @@ export default function DrawModal({ onClose }: DrawModalProps) {
                                 </div>
                             )}
 
-                            {/* Verse Text */}
-                            {currentText && (
-                                <div style={{
-                                    position: 'absolute',
-                                    zIndex: 10,
-                                    left: `${style?.textBox?.x || 50}%`,
-                                    top: `${style?.textBox?.y || 50}%`,
-                                    width: `${style?.textBox?.w || 80}%`,
-                                    height: `${style?.textBox?.h || 40}%`,
-                                    transform: 'translate(-50%, -50%)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: style?.verticalAlign || 'center',
-                                    textAlign: style?.textAlign || 'center',
-                                    color: style?.color || '#ffffff',
-                                    fontFamily: normalizeFont(style?.fontFamily || 'Inter, sans-serif'),
-                                    fontSize: `${style?.fontSize || 30}px`,
-                                    fontWeight: style?.fontWeight || 'normal',
-                                    textTransform: style?.textTransform || 'none',
-                                    textShadow: style?.textShadowEnabled ? `${style.textShadowX || 2}px ${style.textShadowY || 2}px ${style.textShadowBlur || 4}px ${style.textShadowColor || '#000'}` : 'none',
-                                    whiteSpace: 'pre-wrap',
-                                    lineHeight: 1.25,
-                                    overflow: 'hidden',
-                                    pointerEvents: 'none',
-                                }}>
-                                    {currentText}
-                                </div>
-                            )}
-
-                            {/* Reference */}
-                            {slideState?.reference && style?.showRef !== false && (
-                                <div style={{
-                                    position: 'absolute',
-                                    zIndex: 20,
-                                    left: `${style?.refPos?.x || 50}%`,
-                                    top: `${style?.refPos?.y || 80}%`,
-                                    transform: 'translate(-50%, -50%)',
-                                    color: style?.refColor || style?.color || '#ffffff',
-                                    fontFamily: normalizeFont(style?.refFontFamily || style?.fontFamily || 'Inter, sans-serif'),
-                                    fontSize: `${style?.refFontSize || 20}px`,
-                                    fontWeight: 'bold',
-                                    whiteSpace: 'nowrap',
-                                    pointerEvents: 'none',
-                                }}>
-                                    {slideState.reference}
+                            {/* Projection Layers (Text & Ref) - V117 (Sync) */}
+                            {slideState && (
+                                <div className="absolute inset-0 pointer-events-none">
+                                    <ProjectionRenderer
+                                        state={slideState}
+                                        currentText={currentText}
+                                    />
                                 </div>
                             )}
 

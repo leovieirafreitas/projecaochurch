@@ -32,6 +32,7 @@ export default function MusicPage() {
     const [mySongs, setMySongs] = useState<MusicType[]>([]);
 
     const loadLocalSongs = async () => {
+        if (!supabase) return;
         const { data, error } = await supabase
             .from('songs')
             .select('*')
@@ -69,6 +70,7 @@ export default function MusicPage() {
 
         if (isLocal && currentId && currentId !== 'new') {
             // UPDATE
+            if (!supabase) return;
             const { error } = await supabase
                 .from('songs')
                 .update(songData)
@@ -78,6 +80,7 @@ export default function MusicPage() {
             else alert('Música atualizada!');
         } else {
             // INSERT
+            if (!supabase) return;
             const { error } = await supabase
                 .from('songs')
                 .insert([songData]); // ID gerado automaticamente
@@ -93,6 +96,7 @@ export default function MusicPage() {
         e.stopPropagation();
         if (!confirm('Excluir música?')) return;
 
+        if (!supabase) return;
         const { error } = await supabase
             .from('songs')
             .delete()
@@ -203,6 +207,7 @@ export default function MusicPage() {
         const payload = {
             verseText: text,
             reference: ref,
+            slides: slides, // NOVA PROPRIEDADE: Envia cortes exatos do louvor (V118)
             slideIndex: index,
             version: 'MUSIC',
             style: styleToSync,
@@ -280,7 +285,7 @@ export default function MusicPage() {
                     <div className="font-bold text-lg leading-tight text-gray-100 uppercase tracking-wide">
                         Projeção Louvor <span className="text-[10px] text-blue-400 font-normal align-top ml-1 opacity-80">(BETA)</span>
                     </div>
-                    <span className="text-[10px] text-gray-500 font-mono">v1.0.0</span>
+                    <span className="opacity-40 text-[10px] font-mono select-none">v0.3.54</span>
                 </div>
 
                 <div className="flex gap-3">

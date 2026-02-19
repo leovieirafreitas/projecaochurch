@@ -71,14 +71,124 @@ const DEFAULT_PRESETS: BrushPreset[] = [
 ];
 
 const sendDrawingSync = (data: any, channelRef: React.MutableRefObject<BroadcastChannel | null>) => {
-    channelRef.current?.postMessage(data);
+    if (channelRef.current) {
+        channelRef.current.postMessage(data);
+    }
+
     const drawPayload = JSON.stringify({ type: 'drawing', drawData: data, timestamp: Date.now() });
 
-    fetch('http://localhost:4523/api/status', {
+    // FIX: Use current hostname instead of 'localhost' for mobile/tablet access
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    const port = 4523; // Standard project server port
+
+    fetch(`http://${host}:${port}/api/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: drawPayload
-    }).catch(() => { });
+    }).catch((err) => {
+        console.error("[Sync] Erro ao enviar desenho:", err);
+    });
+};
+
+// Helper auxiliar para conversão Base64 -> Blob
+const b64toBlob = (b64Data: string, contentType = '', sliceSize = 512) => {
+    try {
+        const byteCharacters = atob(b64Data);
+        const byteArrays = [];
+
+        for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+            const slice = byteCharacters.slice(offset, offset + sliceSize);
+            const byteNumbers = new Array(slice.length);
+            for (let i = 0; i < slice.length; i++) {
+                byteNumbers[i] = slice.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            byteArrays.push(byteArray);
+        }
+
+        const blob = new Blob(byteArrays, { type: contentType });
+        return blob;
+    } catch (e) {
+        console.error("Erro ao converter Blob:", e);
+        return null;
+    }
+};
+
+// NOVO COMPONENTE DE BACKGROUND GERENCIADO (V96 - Cache Otimizado)
+const ManagedBackground = ({ src, resetTrigger, style }: { src: string, resetTrigger: number, style: any }) => {
+    const [bgUrl, setBgUrl] = useState<string>('');
+    const blobRef = useRef<Blob | null>(null);
+    const lastSrcRef = useRef<string>('');
+    const blobCache = useRef<Map<string, Blob>>(new Map());
+
+    useEffect(() => {
+        let activeUrl = '';
+        let isCancelled = false;
+
+        const updateUrl = async () => {
+            if (src !== lastSrcRef.current) {
+                blobRef.current = null;
+                lastSrcRef.current = src;
+            }
+
+            if (!blobRef.current) {
+                const cacheKey = src.startsWith('data:') ? src.substring(0, 100) : src;
+
+                if (blobCache.current.has(cacheKey)) {
+                    blobRef.current = blobCache.current.get(cacheKey)!;
+                } else {
+                    if (src.startsWith('data:')) {
+                        try {
+                            const part = src.split(',');
+                            if (part.length === 2) {
+                                const mime = part[0].split(':')[1].split(';')[0];
+                                blobRef.current = b64toBlob(part[1], mime);
+                                if (blobRef.current) blobCache.current.set(cacheKey, blobRef.current);
+                            }
+                        } catch (e) { }
+                    } else {
+                        try {
+                            const res = await fetch(src);
+                            if (res.ok) {
+                                blobRef.current = await res.blob();
+                                if (blobRef.current) blobCache.current.set(cacheKey, blobRef.current);
+                            }
+                        } catch (e) { }
+                    }
+                }
+            }
+
+            if (isCancelled) return;
+
+            if (blobRef.current) {
+                activeUrl = URL.createObjectURL(blobRef.current);
+                setBgUrl(activeUrl);
+            } else {
+                const connector = src.includes('?') ? '&' : '?';
+                const forcedUrl = `${src}${connector}r=${resetTrigger}-${Date.now()}`;
+                setBgUrl(forcedUrl);
+            }
+        };
+
+        updateUrl();
+        return () => {
+            isCancelled = true;
+            if (activeUrl) URL.revokeObjectURL(activeUrl);
+        };
+    }, [src, resetTrigger]);
+
+    if (!bgUrl) return null;
+
+    return (
+        <div style={style}>
+            <img
+                key={bgUrl}
+                src={bgUrl}
+                alt="bg"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+        </div>
+    );
 };
 
 export default function DrawPage() {
@@ -91,6 +201,16 @@ export default function DrawPage() {
         slides: [] as string[]
     });
     const lastTimestamp = useRef(0);
+    const [seed, setSeed] = useState(0);
+
+    // V96: Reset de GIF Inteligente (Sync com Projection)
+    useEffect(() => {
+        if (!state.style?.backgroundImage) return;
+        if (state.style?.backgroundImage.toLowerCase().match(/\.jpe?g/)) return;
+        const isResetEnabled = state.style?.resetGifEnabled ?? true;
+        if (!isResetEnabled) return;
+        setSeed(Date.now());
+    }, [state.verseText, state.reference]);
 
     const processUpdate = useCallback(async (data: any) => {
         if (!data || data.type === 'control') return;
@@ -146,18 +266,18 @@ export default function DrawPage() {
     // ─── TEXT & LAYOUT ────────────────────────────────────────────────────────
     const fontSize = state.style?.fontSize ? parseInt(String(state.style.fontSize)) : 30;
     const textBox = state.style?.textBox || { w: 80, h: 40 };
-    // UPDATE: Use 1920x1080 base to match standard projection and ensure font sizes/layout are identical
-    const vWidth = 1920;
-    const vHeight = 1080;
+    // SYNC: Use 1024x576 base to match exactly the projection context and ensure pixel-perfect parity
+    const vWidth = 1024;
+    const vHeight = 576;
     const wPx = Math.max(10, ((textBox.w || 80) / 100) * vWidth - 40);
     const hPx = Math.max(10, ((textBox.h || 40) / 100) * vHeight - 20);
     const fontFamily = state.style?.fontFamily || 'Inter, sans-serif';
     const isBold = state.style?.fontWeight === 'bold';
 
-    const normalizeFont = (f: string) => {
-        if (!f) return 'Inter, sans-serif';
-        if (f.includes('NewBlack')) return 'NewBlackTypeface, sans-serif';
-        return f;
+    const normalizeFont = (fontCtx: string) => {
+        if (!fontCtx) return 'inherit';
+        if (fontCtx.includes('NewBlack')) return 'NewBlackTypeface, sans-serif';
+        return fontCtx;
     };
     const fontName = normalizeFont(fontFamily).replace(/"/g, '');
 
@@ -207,40 +327,6 @@ export default function DrawPage() {
     const isPanning = useRef(false);
     const lastPointerPos = useRef({ x: 0, y: 0 });
     const currentPath = useRef<DrawPath | null>(null);
-
-    // Initial Fit & High DPI Canvas Setup
-    useEffect(() => {
-        const handleResize = () => {
-            if (containerRef.current?.parentElement && canvasRef.current) {
-                const { clientWidth, clientHeight } = containerRef.current.parentElement;
-
-                // Fit calculation
-                const scaleX = clientWidth / vWidth;
-                const scaleY = clientHeight / vHeight;
-                setFitScale(Math.min(scaleX, scaleY) * 0.95);
-
-                // HIGH DPI FIX:
-                const dpr = window.devicePixelRatio || 1;
-                const canvas = canvasRef.current;
-
-                // Set actual canvas memory size (scaled)
-                canvas.width = vWidth * dpr;
-                canvas.height = vHeight * dpr;
-
-                // Set display size (CSS)
-                canvas.style.width = `${vWidth}px`;
-                canvas.style.height = `${vHeight}px`;
-
-                // Scale context to match
-                const ctx = canvas.getContext('2d');
-                if (ctx) ctx.scale(dpr, dpr);
-            }
-        };
-        window.addEventListener('resize', handleResize);
-        handleResize();
-        setTimeout(handleResize, 100);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
 
     useEffect(() => {
         channelRef.current = new BroadcastChannel('drawing_channel');
@@ -383,10 +469,12 @@ export default function DrawPage() {
         const canvas = canvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
-        return {
-            x: ((e.clientX - rect.left) / rect.width) * 100,
-            y: ((e.clientY - rect.top) / rect.height) * 100,
-        };
+
+        // Use clientX/Y to handle touch and mouse consistently
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+        return { x, y };
     };
 
     const handlePointerDown = (e: React.PointerEvent) => {
@@ -473,6 +561,46 @@ export default function DrawPage() {
         else sendDrawingSync({ type: 'CLEAR' }, channelRef);
     };
 
+    // V120: Dynamic High-Quality Buffer Setup
+    useEffect(() => {
+        const handleResize = () => {
+            if (containerRef.current?.parentElement && canvasRef.current) {
+                const { clientWidth, clientHeight } = containerRef.current.parentElement;
+
+                const scaleX = clientWidth / vWidth;
+                const scaleY = clientHeight / vHeight;
+                const newFitScale = Math.min(scaleX, scaleY) * 0.95;
+                setFitScale(newFitScale);
+
+                const dpr = window.devicePixelRatio || 1;
+                const canvas = canvasRef.current;
+
+                const displayW = vWidth * newFitScale * zoom;
+                const displayH = vHeight * newFitScale * zoom;
+
+                const bufferW = Math.max(1920, displayW) * dpr;
+                const bufferH = Math.max(1080, displayH) * dpr;
+
+                if (canvas.width !== bufferW || canvas.height !== bufferH) {
+                    canvas.width = bufferW;
+                    canvas.height = bufferH;
+                    canvas.style.width = `${vWidth}px`;
+                    canvas.style.height = `${vHeight}px`;
+
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.setTransform(1, 0, 0, 1, 0, 0);
+                        ctx.scale(bufferW / vWidth, bufferH / vHeight);
+                    }
+                }
+            }
+            redrawCanvas(); // Always redraw when size parameters change
+        };
+        window.addEventListener('resize', handleResize);
+        handleResize();
+        return () => window.removeEventListener('resize', handleResize);
+    }, [vWidth, vHeight, zoom, redrawCanvas]);
+
     // Close Dropdown on click outside
     useEffect(() => {
         const clickHandler = () => setShowToolDropdown(false);
@@ -487,10 +615,34 @@ export default function DrawPage() {
             <Head>
                 <title>Draw Studio Pro</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+                <link rel="preload" href="/fonts/Wondra.woff" as="font" type="font/woff" crossOrigin="anonymous" />
                 <style>{`
                     .scrollbar-hide::-webkit-scrollbar { display: none; }
                     .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
                     canvas { touch-action: none; }
+
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto:wght@400;700&family=Lora:wght@400;700&family=Montserrat:wght@400;700&display=swap');
+                    
+                    @font-face { font-family: 'Wondra'; src: url('/fonts/Wondra.woff') format('woff'), url('/fonts/Wondra.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: block; }
+                    @font-face { font-family: 'Bigstage'; src: url('/fonts/Bigstage.otf') format('opentype'), url('/fonts/Bigstage.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: block; }
+                    @font-face { font-family: 'CSCalebMono'; src: url('/fonts/CSCalebMono-Regular.otf') format('opentype'), url('/fonts/CSCalebMono-Regular.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: block; }
+                    @font-face { font-family: 'NewBlackTypeface'; src: url('/fonts/NewBlackTypeface-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; font-display: block; }
+                    @font-face { font-family: 'Headless Typeface'; src: url('/fonts/NewBlackTypeface-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; font-display: block; }
+                    @font-face { font-family: 'SunnySide'; src: url('/fonts/SunnySide-Regular.otf') format('opentype'), url('/fonts/SunnySide-Regular.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: block; }
+
+                    @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+                    @keyframes slideLeft { from { opacity:0; transform: translate(calc(-50% - 50px), -50%); } to { opacity:1; transform: translate(-50%, -50%); } }
+                    @keyframes slideRight { from { opacity:0; transform: translate(calc(-50% + 50px), -50%); } to { opacity:1; transform: translate(-50%, -50%); } }
+                    @keyframes slideUp { from { opacity:0; transform: translate(-50%, calc(-50% + 50px)); } to { opacity:1; transform: translate(-50%, -50%); } }
+                    @keyframes slideDown { from { opacity:0; transform: translate(-50%, calc(-50% - 50px)); } to { opacity:1; transform: translate(-50%, -50%); } }
+
+                    .anim-enter { animation-duration: 0.6s; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); animation-fill-mode: both; }
+                    .anim-delay { animation-delay: 0.15s; }
+                    .anim-fade { animation-name: fadeIn; }
+                    .anim-slide-left { animation-name: slideLeft; }
+                    .anim-slide-right { animation-name: slideRight; }
+                    .anim-slide-up { animation-name: slideUp; }
+                    .anim-slide-down { animation-name: slideDown; }
                 `}</style>
             </Head>
 
@@ -709,10 +861,15 @@ export default function DrawPage() {
                             width: `${(state.style?.bgRect?.w || 100)}%`,
                             height: `${(state.style?.bgRect?.h || 100)}%`,
                             transform: 'translate(-50%, -50%)',
-                            zIndex: 0,
+                            zIndex: 1,
                             pointerEvents: 'none'
                         }}>
-                            <img src={bgImage} className="w-full h-full object-cover" />
+                            <ManagedBackground
+                                key={`mb-${state.style?.bgVersion || 0}`}
+                                src={bgImage}
+                                resetTrigger={state.style?.bgVersion || seed}
+                                style={{ width: '100%', height: '100%' }}
+                            />
                         </div>
                     )}
 
@@ -722,12 +879,13 @@ export default function DrawPage() {
 
                     <canvas
                         ref={canvasRef}
-                        // removed width/height props to rely on JS control of resolution
                         className="absolute inset-0 z-10 touch-none"
                         onPointerDown={handlePointerDown}
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
                         onPointerLeave={handlePointerUp}
+                        onPointerCancel={handlePointerUp}
+                        onContextMenu={(e) => e.preventDefault()}
                     />
                 </div>
 
