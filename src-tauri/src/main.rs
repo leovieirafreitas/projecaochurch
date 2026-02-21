@@ -587,9 +587,14 @@ async fn save_image_to_app_data(app_handle: tauri::AppHandle, filename: String, 
         fs::create_dir_all(&uploads_dir).map_err(|e| e.to_string())?;
     }
 
-    // 2. Decode Base64 
-    // Remove header se existir (ex: data:image/png;base64,) para garantir decode correto
+    // 2. Decode Base64 and detect real file extension from header
+    let mut real_ext = "png".to_string();
     let b64_str = if let Some(idx) = base64_data.find(',') {
+        // Detect MIME
+        let header = &base64_data[..idx];
+        if header.contains("image/jpeg") { real_ext = "jpg".to_string(); }
+        else if header.contains("image/webp") { real_ext = "webp".to_string(); }
+        else if header.contains("image/gif") { real_ext = "gif".to_string(); }
         &base64_data[idx+1..]
     } else {
         &base64_data
@@ -600,9 +605,16 @@ async fn save_image_to_app_data(app_handle: tauri::AppHandle, filename: String, 
         .decode(&clean_b64)
         .map_err(|e| format!("Erro Base64: {}", e))?;
 
-    // 3. Salva Arquivo com timestamp para evitar cache/colisão
+    // 3. Salva Arquivo com timestamp para evitar cache/colisão, usando A EXTENSÃO CORRETA DA IMAGEM
+    // Safari é bloqueio de Mime Type SE o Header não bater com o corpo do arquivo.
+    let name_without_ext = std::path::Path::new(&filename)
+        .file_stem()
+        .unwrap_or_else(|| std::ffi::OsStr::new("bg"))
+        .to_str()
+        .unwrap_or("bg");
+
     let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
-    let safe_filename = format!("{}_{}", timestamp, filename.replace(" ", "_"));
+    let safe_filename = format!("{}_{}.{}", timestamp, name_without_ext.replace(" ", "_"), real_ext);
     let final_path = uploads_dir.join(&safe_filename);
 
     fs::write(&final_path, bytes).map_err(|e| e.to_string())?;
