@@ -233,6 +233,9 @@ export default function BibleProjection({ verseText, reference, onClose, storage
     const [refStrokeWidth, setRefStrokeWidth] = useState(1);
     const [refAnimation, setRefAnimation] = useState('none');
     const [refDuration, setRefDuration] = useState(0.6);
+    const [refBgEnabled, setRefBgEnabled] = useState(false);
+    const [refBgColor, setRefBgColor] = useState('rgba(0,0,0,0.5)');
+    const [refBgRadius, setRefBgRadius] = useState(4);
 
     // --- DRAG & RESIZE STATES ---
     const containerRef = useRef<HTMLDivElement>(null);
@@ -410,6 +413,7 @@ export default function BibleProjection({ verseText, reference, onClose, storage
         refAnimation, refDuration,
         refShadowEnabled, refShadowColor, refShadowX, refShadowY, refShadowBlur,
         refStrokeEnabled, refStrokeColor, refStrokeWidth,
+        refBgEnabled, refBgColor, refBgRadius,
         backgroundColor, fontFamily, fontWeight: isBold ? 'bold' : 'normal', textTransform: isUppercase ? 'uppercase' : 'none',
         textBox, bgRect, refPos, refFontSize, refFontFamily, refColor, showRef,
         backgroundImage: background,
@@ -488,11 +492,30 @@ export default function BibleProjection({ verseText, reference, onClose, storage
                 const bg = finalPayload.style.backgroundImage;
                 if (bg && bg.length > 50000 && bg.startsWith('data:')) {
                     try {
-                        await StorageHelper.setBackground(targetStorageKey, bg);
-                        finalPayload.style.backgroundImage = 'INDEXED_DB';
-                    } catch (dbErr) {
-                        console.error("Falha ao salvar background pesado no IndexedDB", dbErr);
-                        // Continua tentando salvar no localStorage como fallback (vai estourar se for enorme)
+                        const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+                        if (isTauri) {
+                            const { invoke } = await import('@tauri-apps/api/tauri');
+                            const url = await invoke('save_image_to_app_data', {
+                                filename: `projection_bg_${Date.now()}.png`,
+                                base64Data: bg
+                            });
+                            if (url && typeof url === 'string') {
+                                finalPayload.style.backgroundImage = url;
+                                setBackground(url); // Updates UI to drop Base64
+                            } else {
+                                throw new Error("Upload returned no URL");
+                            }
+                        } else {
+                            throw new Error("Not a Tauri environment");
+                        }
+                    } catch (uploadErr) {
+                        console.error("Falha no upload para appData, usando IndexedDB local:", uploadErr);
+                        try {
+                            await StorageHelper.setBackground(targetStorageKey, bg);
+                            finalPayload.style.backgroundImage = 'INDEXED_DB';
+                        } catch (dbErr) {
+                            console.error("Falha ao salvar no IndexedDB:", dbErr);
+                        }
                     }
                 }
 

@@ -1167,7 +1167,7 @@ export default function BibleSearch() {
 
         const timer = setTimeout(syncToApi, 100); // Pequeno debounce para não travar
         return () => clearTimeout(timer);
-    }, [activeSlide, currentPartIndex, previewSettings, currentVersion, isProjectionVisible, mobileMode]);
+    }, [activeSlide, currentPartIndex, previewSettings, currentVersion, isProjectionVisible, mobileMode, slideParts]);
 
 
     // Helper de Fontes (Igual Projeção) - Garante consistência de métricas

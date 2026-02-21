@@ -31,22 +31,35 @@ export default function ProjectionRenderer({ state, currentText }: { state: any,
     }, [state.style?.fontFamily]);
 
     useEffect(() => {
-        if (!currentText) return;
-        if (textRef.current && state.style?.fontSize) {
+        if (!currentText || !textRef.current || !state.style?.fontSize) return;
+
+        const adjustSize = () => {
             const el = textRef.current;
+            if (!el) return;
             const targetSize = parseInt(state.style.fontSize);
 
             // Reset to target size
             el.style.fontSize = `${targetSize}px`;
 
+            // Proteção contra Safari Bug em escalas (retorna 0 num tick prematuro de reflow)
+            if (el.clientHeight < 10) return;
+
             let currentSize = targetSize;
+            let checks = 0;
             // Reduce while overflowing
-            // Use clientHeight + 1 to account for subpixel rounding differences (V116)
-            while (el.scrollHeight > el.clientHeight + 1 && currentSize > 10) {
+            // Use clientHeight + 4 to account for Safari's subpixel calculations inside transform: scale() wrappers
+            while (el.scrollHeight > Math.ceil(el.clientHeight) + 4 && currentSize > 10 && checks < 200) {
                 currentSize--;
                 el.style.fontSize = `${currentSize}px`;
+                checks++;
             }
-        }
+        };
+
+        // Envelopar em RAF + Timeout pra iOS Safari deixar layout assentar antes de medir height sob transforms
+        requestAnimationFrame(() => {
+            setTimeout(adjustSize, 50);
+        });
+
     }, [currentText, state.style?.fontSize, state.style?.fontFamily, state.style?.fontWeight, state.style?.textBox, state.slideIndex, fontLoaded]);
 
     const isAdvanced = state.style?.isAdvancedLayout || state.style?.textBox;
@@ -121,6 +134,9 @@ export default function ProjectionRenderer({ state, currentText }: { state: any,
                     left: `${(state.style?.refPos?.x || 50)}%`,
                     top: `${(state.style?.refPos?.y || 80)}%`,
                     transform: 'translate(-50%, -50%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     textAlign: 'center', // Default center, mas a posição controla
                     color: state.style?.refColor || state.style?.color || '#ffffff',
                     fontFamily: normalizeFont(state.style?.refFontSize ? (state.style?.refFontFamily ? `${state.style.refFontFamily}, sans-serif` : (state.style?.fontFamily ? `${state.style.fontFamily}, sans-serif` : 'Inter, sans-serif')) : "inherit"),
@@ -130,6 +146,12 @@ export default function ProjectionRenderer({ state, currentText }: { state: any,
                     WebkitTextStrokeWidth: ((state.style as any)?.refStrokeEnabled === true || (state.style as any)?.refStrokeEnabled === 'true') ? `${(state.style as any)?.refStrokeWidth || 1}px` : undefined,
                     WebkitTextStrokeColor: ((state.style as any)?.refStrokeEnabled === true || (state.style as any)?.refStrokeEnabled === 'true') ? ((state.style as any)?.refStrokeColor || '#000000') : undefined,
                     textTransform: (state.style as any)?.textTransform || 'none',
+
+                    // Highlight Box Logic
+                    backgroundColor: (state.style as any)?.refBgEnabled ? ((state.style as any)?.refBgColor || 'rgba(0,0,0,0.5)') : 'transparent',
+                    padding: (state.style as any)?.refBgEnabled ? '4px 12px' : '0',
+                    borderRadius: (state.style as any)?.refBgRadius ?? 4,
+
                     whiteSpace: 'nowrap',
                     animationDuration: `${(state.style as any)?.refDuration || 0.6}s`,
                     animationDelay: `${(state.style as any)?.textDelay || 0}s`, // Aplica delay na Referência também

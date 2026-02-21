@@ -133,7 +133,8 @@ const ManagedBackground = ({ src, resetTrigger, style }: { src: string, resetTri
                 key={bgUrl}
                 src={bgUrl}
                 alt="bg"
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                style={{ width: '100%', height: '100%', objectFit: style?.objectFit || 'contain' }}
+                onError={(e) => console.error('[ManagedBackground] Erro na Imagem:', bgUrl, e)}
             />
         </div>
     );
@@ -623,13 +624,19 @@ export default function ProjectionPage() {
 
     const currentText = slides[state.slideIndex] || slides[0] || "";
 
-    // CORREÇÃO: Resolve URL local para Mobile (localhost -> IP)
-    const processUrl = (url: string) => {
+    // CORREÇÃO: Resolve URL local para Mobile (localhost -> IP) mantendo a porta do backend
+    const processUrl = (url: string | null | undefined) => {
         if (!url || typeof url !== 'string') return url;
-        // Se a URL aponta para o servidor Rust, ajustamos o hostname
-        if (url.includes(':4523') && typeof window !== 'undefined') {
+        if (url.startsWith('data:')) return url;
+
+        if (typeof window !== 'undefined') {
             const currentHost = window.location.hostname;
-            // Se estamos no mobile (IP) e a URL é localhost, troca
+
+            // Converter caminhos relativos em URL absoluta para a porta 4523
+            if (url.startsWith('/uploads/')) {
+                return `http://${currentHost}:4523${url}`;
+            }
+
             if (currentHost !== 'localhost' && url.includes('localhost')) {
                 return url.replace('localhost', currentHost);
             }
@@ -800,8 +807,7 @@ export default function ProjectionPage() {
                             resetTrigger={state.style?.bgVersion || seed}
                             style={{
                                 width: '100%',
-                                height: '100%',
-                                objectFit: 'cover'
+                                height: '100%'
                             }}
                         />
                     </div>

@@ -1,149 +1,149 @@
 {
-    "build": {
-        "beforeDevCommand": "npm run dev",
-        "beforeBuildCommand": "cross-env TAURI_BUILD=true npm run build",
-        "devPath": "http://localhost:3000",
-        "distDir": "../out",
-        "withGlobalTauri": true
-    },
-    "package": {
-        "productName": "Projection Church",
-        "version": "0.3.54"
-    },
-    "tauri": {
-        "allowlist": {
-            "all": false,
-            "shell": {
-                "all": false,
-                "open": true
-            },
-            "http": {
-                "all": true,
-                "request": true,
-                "scope": [
-                    "https://api.youversion.com/*",
-                    "https://*.dbt.io/*",
-                    "https://bible-api.com/*",
-                    "https://abibliasagrada.com.br/*",
-                    "http://localhost:4523/*",
-                    "http://localhost:4524/*",
-                    "http://localhost:3000/*"
-                ]
-            },
-            "fs": {
-                "all": true,
-                "scope": [
-                    "$APP_DATA/**",
-                    "$RESOURCE/**",
-                    "$DOCUMENT/**",
-                    "$DOWNLOAD/**",
-                    "$DESKTOP/**"
-                ]
-            },
-            "path": {
-                "all": true
-            },
-            "dialog": {
-                "all": true
-            },
-            "window": {
-                "all": false,
-                "setTitle": true
-            }
-        },
-        "bundle": {
-            "active": true,
-            "category": "Productivity",
-            "copyright": "© 2024-2026 Chama Church. Todos os direitos reservados.",
-            "deb": {
-                "depends": []
-            },
-            "externalBin": [],
-            "icon": [
-                "icons/32x32.png",
-                "icons/128x128.png",
-                "icons/128x128@2x.png",
-                "icons/icon.icns",
-                "icons/icon.ico"
-            ],
-            "identifier": "com.chamachurch.projectionchurch",
-            "longDescription": "Sistema completo de projeção bíblica para igrejas. Inclui busca rápida de versículos, editor de projeção, temas personalizáveis e sincronização em tempo real.",
-            "macOS": {
-                "entitlements": null,
-                "exceptionDomain": "",
-                "frameworks": [],
-                "providerShortName": null,
-                "signingIdentity": null
-            },
-            "resources": [
-                "../songs_db.json",
-                "../out/**/*",
-                "resources/bibles/**/*"
-            ],
-            "shortDescription": "Sistema de Projeção Bíblica para Igrejas",
-            "targets": [],
-            "windows": {
-                "certificateThumbprint": null,
-                "digestAlgorithm": "sha256",
-                "timestampUrl": "",
-                "wix": {
-                    "language": "pt-BR",
-                    "template": null,
-                    "fragmentPaths": [],
-                    "componentGroupRefs": [],
-                    "componentRefs": [],
-                    "featureGroupRefs": [],
-                    "featureRefs": [],
-                    "mergeRefs": [],
-                    "skipWebviewInstall": false,
-                    "license": null,
-                    "enableElevatedUpdateTask": false,
-                    "bannerPath": null,
-                    "dialogImagePath": null
-                },
-                "nsis": {
-                    "license": null,
-                    "headerImage": null,
-                    "sidebarImage": "icons/sidebar.bmp",
-                    "installerIcon": "icons/icon.ico",
-                    "installMode": "currentUser",
-                    "languages": [
-                        "PortugueseBR"
-                    ],
-                    "displayLanguageSelector": false,
-                    "compression": "lzma"
-                }
-            }
-        },
-        "security": {
-            "csp": null
-        },
-        "updater": {
-            "active": false
-        },
-        "windows": [
-            {
-                "label": "main",
-                "visible": false,
-                "fullscreen": false,
-                "resizable": true,
-                "title": "Projection Church",
-                "width": 1280,
-                "height": 720
-            },
-            {
-                "label": "splashscreen",
-                "url": "splashscreen.html",
-                "visible": true,
-                "fullscreen": false,
-                "resizable": false,
-                "decorations": false,
-                "transparent": true,
-                "center": true,
-                "alwaysOnTop": true,
-                "width": 800,
-                "height": 600
-            }
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "cross-env TAURI_BUILD=true npm run build",
+    "devPath": "http://localhost:3000",
+    "distDir": "../out",
+    "withGlobalTauri": true
+  },
+  "package": {
+    "productName": "Projection Church",
+    "version": "0.3.59"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false,
+        "open": true
+      },
+      "http": {
+        "all": true,
+        "request": true,
+        "scope": [
+          "https://api.youversion.com/*",
+          "https://*.dbt.io/*",
+          "https://bible-api.com/*",
+          "https://abibliasagrada.com.br/*",
+          "http://localhost:4523/*",
+          "http://localhost:4524/*",
+          "http://localhost:3000/*"
         ]
-    }
+      },
+      "fs": {
+        "all": true,
+        "scope": [
+          "$APP_DATA/**",
+          "$RESOURCE/**",
+          "$DOCUMENT/**",
+          "$DOWNLOAD/**",
+          "$DESKTOP/**"
+        ]
+      },
+      "path": {
+        "all": true
+      },
+      "dialog": {
+        "all": true
+      },
+      "window": {
+        "all": false,
+        "setTitle": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "category": "Productivity",
+      "copyright": "© 2024-2026 Chama Church. Todos os direitos reservados.",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "identifier": "com.chamachurch.projectionchurch",
+      "longDescription": "Sistema completo de projeção bíblica para igrejas. Inclui busca rápida de versículos, editor de projeção, temas personalizáveis e sincronização em tempo real.",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
+      },
+      "resources": [
+        "../songs_db.json",
+        "../out/**/*",
+        "resources/bibles/**/*"
+      ],
+      "shortDescription": "Sistema de Projeção Bíblica para Igrejas",
+      "targets": [],
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": "",
+        "wix": {
+          "language": "pt-BR",
+          "template": null,
+          "fragmentPaths": [],
+          "componentGroupRefs": [],
+          "componentRefs": [],
+          "featureGroupRefs": [],
+          "featureRefs": [],
+          "mergeRefs": [],
+          "skipWebviewInstall": false,
+          "license": null,
+          "enableElevatedUpdateTask": false,
+          "bannerPath": null,
+          "dialogImagePath": null
+        },
+        "nsis": {
+          "license": null,
+          "headerImage": null,
+          "sidebarImage": "icons/sidebar.bmp",
+          "installerIcon": "icons/icon.ico",
+          "installMode": "currentUser",
+          "languages": [
+            "PortugueseBR"
+          ],
+          "displayLanguageSelector": false,
+          "compression": "lzma"
+        }
+      }
+    },
+    "security": {
+      "csp": null
+    },
+    "updater": {
+      "active": false
+    },
+    "windows": [
+      {
+        "label": "main",
+        "visible": false,
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Projection Church",
+        "width": 1280,
+        "height": 720
+      },
+      {
+        "label": "splashscreen",
+        "url": "splashscreen.html",
+        "visible": true,
+        "fullscreen": false,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "center": true,
+        "alwaysOnTop": true,
+        "width": 800,
+        "height": 600
+      }
+    ]
+  }
 }

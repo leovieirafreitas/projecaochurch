@@ -114,78 +114,25 @@ const b64toBlob = (b64Data: string, contentType = '', sliceSize = 512) => {
     }
 };
 
-// NOVO COMPONENTE DE BACKGROUND GERENCIADO (V96 - Cache Otimizado)
+// MANAGED BACKGROUND SIMPLIFICADO PROTEGENDO MEMÓRIA MOBILE
 const ManagedBackground = ({ src, resetTrigger, style }: { src: string, resetTrigger: number, style: any }) => {
-    const [bgUrl, setBgUrl] = useState<string>('');
-    const blobRef = useRef<Blob | null>(null);
-    const lastSrcRef = useRef<string>('');
-    const blobCache = useRef<Map<string, Blob>>(new Map());
+    // Evita loop de renderização convertendo a string se não for estática
+    const [stableSrc, setStableSrc] = React.useState(src);
 
-    useEffect(() => {
-        let activeUrl = '';
-        let isCancelled = false;
-
-        const updateUrl = async () => {
-            if (src !== lastSrcRef.current) {
-                blobRef.current = null;
-                lastSrcRef.current = src;
-            }
-
-            if (!blobRef.current) {
-                const cacheKey = src.startsWith('data:') ? src.substring(0, 100) : src;
-
-                if (blobCache.current.has(cacheKey)) {
-                    blobRef.current = blobCache.current.get(cacheKey)!;
-                } else {
-                    if (src.startsWith('data:')) {
-                        try {
-                            const part = src.split(',');
-                            if (part.length === 2) {
-                                const mime = part[0].split(':')[1].split(';')[0];
-                                blobRef.current = b64toBlob(part[1], mime);
-                                if (blobRef.current) blobCache.current.set(cacheKey, blobRef.current);
-                            }
-                        } catch (e) { }
-                    } else {
-                        try {
-                            const res = await fetch(src);
-                            if (res.ok) {
-                                blobRef.current = await res.blob();
-                                if (blobRef.current) blobCache.current.set(cacheKey, blobRef.current);
-                            }
-                        } catch (e) { }
-                    }
-                }
-            }
-
-            if (isCancelled) return;
-
-            if (blobRef.current) {
-                activeUrl = URL.createObjectURL(blobRef.current);
-                setBgUrl(activeUrl);
-            } else {
-                const connector = src.includes('?') ? '&' : '?';
-                const forcedUrl = `${src}${connector}r=${resetTrigger}-${Date.now()}`;
-                setBgUrl(forcedUrl);
-            }
-        };
-
-        updateUrl();
-        return () => {
-            isCancelled = true;
-            if (activeUrl) URL.revokeObjectURL(activeUrl);
-        };
+    React.useEffect(() => {
+        if (src !== stableSrc) setStableSrc(src);
     }, [src, resetTrigger]);
 
-    if (!bgUrl) return null;
+    if (!stableSrc) return null;
 
     return (
         <div style={style}>
             <img
-                key={bgUrl}
-                src={bgUrl}
+                key={`bg-${resetTrigger}`}
+                src={stableSrc}
                 alt="bg"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                style={{ width: '100%', height: '100%', objectFit: style?.objectFit || 'contain' }}
+                onError={(e) => console.error('[ManagedBg] ERRO ao carregar:', stableSrc, e)}
             />
         </div>
     );
@@ -203,14 +150,7 @@ export default function DrawPage() {
     const lastTimestamp = useRef(0);
     const [seed, setSeed] = useState(0);
 
-    // V96: Reset de GIF Inteligente (Sync com Projection)
-    useEffect(() => {
-        if (!state.style?.backgroundImage) return;
-        if (state.style?.backgroundImage.toLowerCase().match(/\.jpe?g/)) return;
-        const isResetEnabled = state.style?.resetGifEnabled ?? true;
-        if (!isResetEnabled) return;
-        setSeed(Date.now());
-    }, [state.verseText, state.reference]);
+    // Removido o reset do GIF no Draw pois nao eh necessario animar sempre aqui
 
     const processUpdate = useCallback(async (data: any) => {
         if (!data || data.type === 'control') return;
@@ -294,7 +234,32 @@ export default function DrawPage() {
     }, [state.slides, state.verseText, wPx, hPx, fontSize, fontName, isBold]);
 
     const currentText = computedSlides[state.slideIndex ?? 0] || state.verseText || '';
-    const bgImage = state.style?.backgroundImage === 'INDEXED_DB' ? null : state.style?.backgroundImage;
+
+    // CORREÇÃO: Resolve URL local para Mobile (localhost -> IP) igual em projection.tsx
+    // CORREÇÃO: Resolve URL local para Mobile (localhost -> IP) mantendo a porta do backend
+    const processUrl = (url: string | null | undefined) => {
+        if (!url || typeof url !== 'string') return url;
+        if (url.startsWith('data:')) return url;
+
+        if (typeof window !== 'undefined') {
+            const currentHost = window.location.hostname;
+
+            // Converter caminhos relativos em URL absoluta para a porta 4523
+            if (url.startsWith('/uploads/')) {
+                return `http://${currentHost}:4523${url}`;
+            }
+
+            if (currentHost !== 'localhost' && url.includes('localhost')) {
+                return url.replace('localhost', currentHost);
+            }
+        }
+        return url;
+    };
+
+    const rawBg = state.style?.backgroundImage || state.style?.background;
+    let bgImage = rawBg === 'INDEXED_DB' ? null : rawBg;
+    bgImage = processUrl(bgImage);
+    const finalBgImage = (bgImage && bgImage !== 'INDEXED_DB') ? bgImage : null;
     const bgColor = state.style?.backgroundColor || '#000000';
 
     // ─── DRAWING STATE ────────────────────────────────────────────────────────
@@ -470,9 +435,17 @@ export default function DrawPage() {
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
 
-        // Use clientX/Y to handle touch and mouse consistently
-        const x = ((e.clientX - rect.left) / rect.width) * 100;
-        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+
+        // Fallback robust coordinates for touch handling if base clientX gets offset
+        if (e.pointerType === 'touch' && (e.nativeEvent as any).touches?.length > 0) {
+            clientX = (e.nativeEvent as any).touches[0].clientX;
+            clientY = (e.nativeEvent as any).touches[0].clientY;
+        }
+
+        const x = ((clientX - rect.left) / rect.width) * 100;
+        const y = ((clientY - rect.top) / rect.height) * 100;
 
         return { x, y };
     };
@@ -572,14 +545,23 @@ export default function DrawPage() {
                 const newFitScale = Math.min(scaleX, scaleY) * 0.95;
                 setFitScale(newFitScale);
 
-                const dpr = window.devicePixelRatio || 1;
+                const dpr = Math.min(window.devicePixelRatio || 1, 2); // Safely limit DPR
                 const canvas = canvasRef.current;
 
                 const displayW = vWidth * newFitScale * zoom;
                 const displayH = vHeight * newFitScale * zoom;
 
-                const bufferW = Math.max(1920, displayW) * dpr;
-                const bufferH = Math.max(1080, displayH) * dpr;
+                // FIX: Do not force massive 1920 scaling on mobile devices which exceeds canvas memory limits!
+                let bufferW = Math.max(vWidth, displayW) * dpr;
+                let bufferH = Math.max(vHeight, displayH) * dpr;
+
+                // Final safety clamp for iOS Safari limit (4096 cap on any side)
+                const MAX_CANVAS_DIMENSION = 4096;
+                if (bufferW > MAX_CANVAS_DIMENSION || bufferH > MAX_CANVAS_DIMENSION) {
+                    const reductionRatio = Math.min(MAX_CANVAS_DIMENSION / bufferW, MAX_CANVAS_DIMENSION / bufferH);
+                    bufferW = Math.floor(bufferW * reductionRatio);
+                    bufferH = Math.floor(bufferH * reductionRatio);
+                }
 
                 if (canvas.width !== bufferW || canvas.height !== bufferH) {
                     canvas.width = bufferW;
@@ -622,7 +604,7 @@ export default function DrawPage() {
                     canvas { touch-action: none; }
 
                     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto:wght@400;700&family=Lora:wght@400;700&family=Montserrat:wght@400;700&display=swap');
-                    
+
                     @font-face { font-family: 'Wondra'; src: url('/fonts/Wondra.woff') format('woff'), url('/fonts/Wondra.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: block; }
                     @font-face { font-family: 'Bigstage'; src: url('/fonts/Bigstage.otf') format('opentype'), url('/fonts/Bigstage.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: block; }
                     @font-face { font-family: 'CSCalebMono'; src: url('/fonts/CSCalebMono-Regular.otf') format('opentype'), url('/fonts/CSCalebMono-Regular.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: block; }
@@ -631,13 +613,26 @@ export default function DrawPage() {
                     @font-face { font-family: 'SunnySide'; src: url('/fonts/SunnySide-Regular.otf') format('opentype'), url('/fonts/SunnySide-Regular.ttf') format('truetype'); font-weight: normal; font-style: normal; font-display: block; }
 
                     @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
-                    @keyframes slideLeft { from { opacity:0; transform: translate(calc(-50% - 50px), -50%); } to { opacity:1; transform: translate(-50%, -50%); } }
-                    @keyframes slideRight { from { opacity:0; transform: translate(calc(-50% + 50px), -50%); } to { opacity:1; transform: translate(-50%, -50%); } }
-                    @keyframes slideUp { from { opacity:0; transform: translate(-50%, calc(-50% + 50px)); } to { opacity:1; transform: translate(-50%, -50%); } }
-                    @keyframes slideDown { from { opacity:0; transform: translate(-50%, calc(-50% - 50px)); } to { opacity:1; transform: translate(-50%, -50%); } }
+                    @keyframes slideLeft { 
+                        from { opacity:0; transform: translate(calc(-50% - 50px), -50%); } 
+                        to { opacity:1; transform: translate(-50%, -50%); } 
+                    }
+                    @keyframes slideRight { 
+                        from { opacity:0; transform: translate(calc(-50% + 50px), -50%); } 
+                        to { opacity:1; transform: translate(-50%, -50%); } 
+                    }
+                    @keyframes slideUp { 
+                        from { opacity:0; transform: translate(-50%, calc(-50% + 50px)); } 
+                        to { opacity:1; transform: translate(-50%, -50%); } 
+                    }
+                    @keyframes slideDown { 
+                        from { opacity:0; transform: translate(-50%, calc(-50% - 50px)); } 
+                        to { opacity:1; transform: translate(-50%, -50%); } 
+                    }
 
                     .anim-enter { animation-duration: 0.6s; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); animation-fill-mode: both; }
                     .anim-delay { animation-delay: 0.15s; }
+
                     .anim-fade { animation-name: fadeIn; }
                     .anim-slide-left { animation-name: slideLeft; }
                     .anim-slide-right { animation-name: slideRight; }
@@ -840,20 +835,25 @@ export default function DrawPage() {
                     }
                 }}
             >
+
                 <div
                     ref={containerRef}
                     style={{
+                        position: 'absolute',
+                        left: '50%',
+                        top: '50%',
                         width: vWidth,
                         height: vHeight,
-                        transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${fitScale * zoom})`,
+                        transform: `translate(calc(-50% + ${panOffset.x}px), calc(-50% + ${panOffset.y}px)) scale(${fitScale * zoom})`,
                         backgroundColor: bgColor,
                         transition: isPanning.current ? 'none' : 'transform 0.1s ease-out',
-                        boxShadow: '0 0 50px rgba(0,0,0,0.5)'
+                        boxShadow: '0 0 50px rgba(0,0,0,0.5)',
+                        flexShrink: 0
                     }}
                     className="relative"
                 >
                     {/* BACKGROUND Image with BGRECT Fix */}
-                    {bgImage && (
+                    {finalBgImage && (
                         <div style={{
                             position: 'absolute',
                             left: `${(state.style?.bgRect?.x || 50)}%`,
@@ -866,7 +866,7 @@ export default function DrawPage() {
                         }}>
                             <ManagedBackground
                                 key={`mb-${state.style?.bgVersion || 0}`}
-                                src={bgImage}
+                                src={finalBgImage}
                                 resetTrigger={state.style?.bgVersion || seed}
                                 style={{ width: '100%', height: '100%' }}
                             />
@@ -880,6 +880,7 @@ export default function DrawPage() {
                     <canvas
                         ref={canvasRef}
                         className="absolute inset-0 z-10 touch-none"
+                        style={{ touchAction: 'none' }}
                         onPointerDown={handlePointerDown}
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
@@ -897,6 +898,13 @@ export default function DrawPage() {
                     <button onClick={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }} className="w-8 h-6 flex items-center justify-center text-[9px] text-blue-500 font-bold uppercase hover:bg-white/10 rounded">RST</button>
                 </div>
             </div>
-        </div>
+
+            {/* OVERLAY DE BLOQUEIO VERTICAL PARA MOBILE/TABLET */}
+            <div className="hidden portrait:flex fixed inset-0 z-[999999] bg-[#1e1e1e] flex-col items-center justify-center text-center p-8">
+                <LuMonitor size={64} className="text-[#007AFF] mb-6 animate-pulse" />
+                <h2 className="text-2xl font-bold text-white mb-2">Gire seu aparelho</h2>
+                <p className="text-zinc-400 max-w-[250px]">A lousa mágica foi projetada para uso exclusivo na orientação horizontal (Paisagem).</p>
+            </div>
+        </div >
     );
 }
