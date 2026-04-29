@@ -1360,53 +1360,104 @@ export default function BibleSearch() {
 
                 const verses: { num: number, text: string }[] = [];
 
-                // --- PARSER VIOLENTO (REGEX MELHORADO - SUPPORT RANGES 15-18) ---
-                let cleanHtml = (html || '')
-                    .replace(/\<span[^\>]*class=\"[^\"]*(?:label|v|verse|verse-number|versenum|num|chapternum)[^\"]*\"[^\>]*\>([\d]+(?:[\-\u2013][\d]+)?)\<\/span\>/gi, '___V$1___')
-                    .replace(/\<span[^\>]*class=\"[^\"]*yv-v[^\"]*\"[^\>]*v=\"([\d]+(?:[\-\u2013][\d]+)?)\"[^\>]*\>/gi, '___V$1___')
-                    .replace(/data-usfm=\"[^\"]+\.[^\"]+\.([\d]+(?:[\-\u2013][\d]+)?)\"/gi, '___V$1___')
-                    .replace(/data-v=\"([\d]+(?:[\-\u2013][\d]+)?)\"/gi, '___V$1___');
-
-                let txt = cleanHtml.replace(/\<[^\>]+\>/g, ' ').replace(/\s+/g, ' ').trim();
-                const parts = txt.split('___V');
+                // --- PARSER DOM-BASED (ROBUSTO - Suporta todas as versões) ---
+                // Estratégia 1: DOM query para elementos com data-usfm (mais preciso, evita duplicatas)
                 const versesFound: { num: number, text: string }[] = [];
 
-                parts.forEach((part: string) => {
-                    // Match number or range (e.g., "15" or "15-18")
-                    const match = part.match(/^([\d\-\u2013]+)___(.*)/);
-                    if (match) {
-                        const ref = match[1];
-                        let text = match[2].trim();
-                        text = text.replace(/^[\d\-\u2013]+\s+/, '').trim();
+                // Remove numeração inline de versículos antes de ler texto (evita poluição)
+                // mas guarda os números via atributo
+                // Only select leaf-level data-usfm elements (not containers with verse children)
+                const allUsfmElems = tempDiv.querySelectorAll('[data-usfm]');
+                const verseElems = Array.from(allUsfmElems).filter((el) => {
+                    const usfm = el.getAttribute('data-usfm') || '';
+                    // Must have exactly 3 parts (BOOK.CHAP.VERSE) to be a verse element
+                    if (usfm.split('.').length < 3) return false;
+                    // Must NOT contain child elements that also have data-usfm (would be a container)
+                    return el.querySelectorAll('[data-usfm]').length === 0;
+                });
+                if (verseElems.length > 0) {
+                    verseElems.forEach((el: Element) => {
+                        const usfm = el.getAttribute('data-usfm') || '';
+                        const parts = usfm.split('.');
+                        if (parts.length < 3) return; // Pula elementos de capítulo/livro (sem número de versículo)
+                        const verseRef = parts[parts.length - 1]; // Último segmento = número do versículo
+
+                        // Remove spans de número de versículo DENTRO do elemento antes de pegar texto
+                        const clone = el.cloneNode(true) as Element;
+                        clone.querySelectorAll('.label, .v, .verse-number, .versenum, .num, .chapternum').forEach((n: Element) => n.remove());
+                        let text = (clone.textContent || '').trim().replace(/\s+/g, ' ');
+                        text = text.replace(/^[\d]+\s+/, '').trim(); // Remove número residual no início
                         text = text.replace(/Copyright.*/gi, '').trim();
 
-                        if (text) {
-                            // Check for Range (e.g. 15-18)
+                        if (!text) return;
+
+                        // Suporte a ranges (ex: "15-18")
+                        if (verseRef.match(/[\-\u2013]/)) {
+                            const rangeParts = verseRef.split(/[\-\u2013]/);
+                            const start = parseInt(rangeParts[0]);
+                            const end = parseInt(rangeParts[1]);
+                            if (!isNaN(start) && !isNaN(end)) {
+                                for (let k = start; k <= end; k++) versesFound.push({ num: k, text });
+                            }
+                        } else {
+                            const num = parseInt(verseRef);
+                            if (num > 0) versesFound.push({ num, text });
+                        }
+                    });
+                }
+
+                // Estratégia 2: Se DOM query não encontrou, usa spans de classe label/v
+                if (versesFound.length < 2) {
+                    const labelSpans = tempDiv.querySelectorAll('.label, .v, .verse-number, .versenum, .num');
+                    labelSpans.forEach((span: Element) => {
+                        const numText = (span.textContent || '').trim();
+                        const num = parseInt(numText);
+                        if (isNaN(num) || num <= 0) return;
+
+                        // Texto do versículo: siblings após o span até o próximo span de número
+                        let text = '';
+                        let node = span.nextSibling;
+                        while (node) {
+                            if (node.nodeType === Node.TEXT_NODE) {
+                                text += node.textContent || '';
+                            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                                const el = node as Element;
+                                if (el.classList.contains('label') || el.classList.contains('v') ||
+                                    el.classList.contains('verse-number') || el.getAttribute('data-usfm')) break;
+                                text += el.textContent || '';
+                            }
+                            node = node.nextSibling;
+                        }
+                        text = text.trim().replace(/\s+/g, ' ').replace(/Copyright.*/gi, '').trim();
+                        if (text) versesFound.push({ num, text });
+                    });
+                }
+
+                // Estratégia 3: Regex como último recurso
+                if (versesFound.length < 2) {
+                    let cleanHtml2 = (html || '')
+                        .replace(/<span[^>]*class="[^"]*(?:label|v|verse-number|versenum|num|chapternum)[^"]*"[^>]*>([\d]+(?:[-\u2013][\d]+)?)<\/span>/gi, '___V$1___')
+                        .replace(/<span[^>]*class="[^"]*yv-v[^"]*"[^>]*v="([\d]+(?:[-\u2013][\d]+)?)"[^>]*>/gi, '___V$1___')
+                        .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                    const parts2 = cleanHtml2.split('___V');
+                    parts2.forEach((part: string) => {
+                        const match = part.match(/^([\d\-\u2013]+)___(.+)/);
+                        if (match) {
+                            const ref = match[1];
+                            let text = match[2].trim().replace(/^[\d\-\u2013]+\s+/, '').replace(/Copyright.*/gi, '').trim();
+                            if (!text) return;
                             if (ref.match(/[\-\u2013]/)) {
-                                const rangeParts = ref.split(/[\-\u2013]/);
-                                const start = parseInt(rangeParts[0]);
-                                const end = parseInt(rangeParts[1]);
-                                if (!isNaN(start) && !isNaN(end) && end >= start) {
-                                    for (let k = start; k <= end; k++) {
-                                        versesFound.push({ num: k, text: text });
-                                    }
-                                } else if (!isNaN(start)) {
-                                    versesFound.push({ num: start, text: text });
-                                }
+                                const rp = ref.split(/[\-\u2013]/);
+                                const s = parseInt(rp[0]), e = parseInt(rp[1]);
+                                if (!isNaN(s) && !isNaN(e)) for (let k = s; k <= e; k++) versesFound.push({ num: k, text });
                             } else {
-                                // Single Verse
                                 const num = parseInt(ref);
                                 if (num > 0) versesFound.push({ num, text });
                             }
                         }
-                    } else {
-                        // Fallback Regex for raw text lines (less common now)
-                        const rawMatch = part.match(/^(\d+)\s+(.*)/);
-                        if (rawMatch) {
-                            versesFound.push({ num: parseInt(rawMatch[1]), text: rawMatch[2].trim() });
-                        }
-                    }
-                });
+                    });
+                }
+
 
                 if (versesFound.length < 2) {
                     const pureText = tempDiv.textContent || '';

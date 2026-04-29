@@ -176,32 +176,105 @@ export default function DrawPage() {
 
     useProjectionSync('receiver', processUpdate);
 
-    // Initial Load Logic
-    const loadFromStorage = async () => {
-        try {
-            const stored = localStorage.getItem('bible_settings');
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                requestAnimationFrame(async () => {
+    // LISTENER TAURI GLOBAL - Conecta Editor -> Tela de Desenho
+    useEffect(() => {
+        let unlisten: Function | undefined;
+
+        const setupListener = async () => {
+            if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+                const tauri = (window as any).__TAURI__;
+
+                try {
+                    unlisten = await tauri.event.listen('bible-projection-update', async (event: any) => {
+                        const style = event.payload;
+                        if (!style) return;
+
+                        const newState = {
+                            style: { ...style }
+                        } as any;
+
+                        if (style.backgroundImage) {
+                            newState.style.backgroundImage = style.backgroundImage;
+                        } else {
+                            const storageKey = 'bible_settings';
+                            const idbImage = await StorageHelper.getBackground(storageKey);
+                            newState.style.backgroundImage = idbImage || null;
+                        }
+
+                        setState(prev => ({
+                            ...prev,
+                            style: { ...prev.style, ...newState.style },
+                            timestamp: Date.now()
+                        }));
+                    });
+                } catch (e) {
+                }
+            }
+        };
+
+        setupListener();
+        return () => { if (unlisten) unlisten(); };
+    }, []);
+
+    // CARREGAMENTO INICIAL LOCAL + LISTENER DE SINCRONIZAÇÃO EM TEMPO REAL
+    useEffect(() => {
+        const loadInitialLocal = async () => {
+            try {
+                const stored = localStorage.getItem('bible_settings');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
                     const idbImage = await StorageHelper.getBackground('bible_settings');
                     const initialStyle = {
                         ...(parsed.style || parsed),
-                        backgroundImage: idbImage || parsed.style?.backgroundImage || null
+                        backgroundImage: idbImage || parsed.style?.backgroundImage || parsed.backgroundImage || null
                     };
+
                     setState(prev => ({
                         ...prev,
                         verseText: parsed.verseText || '',
                         reference: parsed.reference || '',
                         slideIndex: parsed.slideIndex || 0,
-                        style: initialStyle,
-                        slides: parsed.slides || []
+                        slides: parsed.slides || [],
+                        style: initialStyle
                     }));
-                });
-            }
-        } catch { }
-    };
+                }
+            } catch (e) { }
+        };
+        loadInitialLocal();
 
-    useEffect(() => { loadFromStorage(); }, []);
+        const handleStorageUpdate = async (e: StorageEvent | CustomEvent) => {
+            if ((e instanceof StorageEvent && e.key === 'bible_settings') || e.type === 'force-sync-settings') {
+                const rawData = e instanceof StorageEvent ? e.newValue : JSON.stringify((e as CustomEvent).detail);
+                if (rawData) {
+                    try {
+                        const payload = JSON.parse(rawData);
+                        const newStyle = payload.style || payload;
+
+                        setState(prev => ({
+                            ...prev,
+                            verseText: payload.verseText ?? prev.verseText,
+                            reference: payload.reference ?? prev.reference,
+                            slideIndex: payload.slideIndex ?? prev.slideIndex,
+                            slides: payload.slides || [],
+                            style: {
+                                ...prev.style,
+                                ...newStyle,
+                                backgroundImage: newStyle.backgroundImage
+                            }
+                        }));
+                    } catch (err) { }
+                }
+            }
+        };
+
+        window.addEventListener('storage', handleStorageUpdate);
+        window.addEventListener('force-sync-settings', handleStorageUpdate as any);
+
+        return () => {
+            window.removeEventListener('storage', handleStorageUpdate);
+            window.removeEventListener('force-sync-settings', handleStorageUpdate as any);
+        };
+    }, []);
 
     // ─── TEXT & LAYOUT ────────────────────────────────────────────────────────
     const fontSize = state.style?.fontSize ? parseInt(String(state.style.fontSize)) : 30;
@@ -221,8 +294,9 @@ export default function DrawPage() {
     };
     const fontName = normalizeFont(fontFamily).replace(/"/g, '');
 
-    const computedSlides = React.useMemo(() => {
+    const slides = React.useMemo(() => {
         if (state.slides && state.slides.length > 0) return state.slides;
+
         return splitTextGeometrically(
             state.verseText || '',
             wPx,
@@ -233,7 +307,7 @@ export default function DrawPage() {
         );
     }, [state.slides, state.verseText, wPx, hPx, fontSize, fontName, isBold]);
 
-    const currentText = computedSlides[state.slideIndex ?? 0] || state.verseText || '';
+    const currentText = slides[state.slideIndex] || slides[0] || state.verseText || '';
 
     // CORREÇÃO: Resolve URL local para Mobile (localhost -> IP) igual em projection.tsx
     // CORREÇÃO: Resolve URL local para Mobile (localhost -> IP) mantendo a porta do backend
